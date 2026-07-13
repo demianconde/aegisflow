@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import json
 import uuid
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 
 import httpx
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -56,7 +56,6 @@ class Plan:
     baseline_model: str | None
     complexity: str | None
     routed: bool = False
-    _svc_cache: dict = field(default_factory=dict)
 
 
 async def _tenant_provider_keys(db: AsyncSession, tenant_id: uuid.UUID) -> list[ProviderKey]:
@@ -169,7 +168,7 @@ async def chat_completions(
     cache_text = prompt_text(base_upstream["messages"])
 
     # ---------- cache semântico: tenta servir sem chamar o provedor ----------
-    cached = await cache.get(str(tenant_id), cache_text)
+    cached, cache_emb = await cache.lookup(str(tenant_id), cache_text)
     if cached is not None:
         await record_usage(
             tenant_id=tenant_id,
@@ -276,9 +275,9 @@ async def chat_completions(
                 _saved(baseline, model_used, usage.prompt_tokens, usage.completion_tokens))
             if ok:
                 content = "".join(collected)
-                await cache.put(
+                await cache.store(
                     str(tenant_id),
-                    cache_text,
+                    cache_emb,
                     CachedResponse(
                         content=content,
                         model=model_used,
@@ -352,9 +351,9 @@ async def chat_completions(
                     "total_tokens": result.usage.prompt_tokens + result.usage.completion_tokens,
                 },
             }
-        await cache.put(
+        await cache.store(
             str(tenant_id),
-            cache_text,
+            cache_emb,
             CachedResponse(
                 content=result.content,
                 model=model_used,

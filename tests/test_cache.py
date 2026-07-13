@@ -30,11 +30,14 @@ async def test_cache_hit_and_miss(monkeypatch):
     monkeypatch.setattr(semantic, "embed", fake_embed)
     cache = SemanticCache()
 
-    assert await cache.get("t1", "ola mundo") is None  # vazio → miss
-    await cache.put("t1", "ola mundo", CachedResponse("oi!", "m", "p", 5, 3))
+    hit, emb = await cache.lookup("t1", "ola mundo")  # vazio → miss, mas retorna embedding
+    assert hit is None and emb is not None
+    await cache.store("t1", emb, CachedResponse("oi!", "m", "p", 5, 3))
 
-    hit = await cache.get("t1", "ola pessoal")  # mesmo vetor → hit
-    assert hit is not None and hit.content == "oi!"
+    hit2, _ = await cache.lookup("t1", "ola pessoal")  # mesmo vetor → hit
+    assert hit2 is not None and hit2.content == "oi!"
 
-    assert await cache.get("t1", "xyz outro")  is None  # vetor diferente → miss
-    assert await cache.get("t2", "ola mundo") is None  # tenant diferente → isolado
+    hit3, _ = await cache.lookup("t1", "xyz outro")  # vetor diferente → miss
+    assert hit3 is None
+    hit4, _ = await cache.lookup("t2", "ola mundo")  # tenant diferente → isolado
+    assert hit4 is None

@@ -115,12 +115,6 @@ section { position: relative; }
 .traffic span { width: 0.75rem; height: 0.75rem; border-radius: 9999px; }
 .traffic .r { background: #ef4444; } .traffic .y { background: #eab308; } .traffic .g { background: #22c55e; }
 .mockup-status { display: flex; gap: 1rem; font-size: 0.8rem; color: var(--muted); font-family: ui-monospace, monospace; }
-.mockup-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1rem; font-family: ui-monospace, monospace; font-size: 0.85rem; }
-.mockup-cell { background: #0b1220; border: 1px solid var(--border); border-radius: 0.5rem; padding: 1rem; }
-.mockup-cell.route { border-left: 4px solid var(--brand); }
-.mockup-cell.mid { display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; }
-.mockup-cell .lbl { color: var(--muted-2); margin-bottom: 0.5rem; }
-.mockup-cell .row { display: flex; justify-content: space-between; font-size: 0.72rem; margin-top: 1rem; }
 .text-green { color: var(--green); }
 .text-mono-mut { color: var(--muted-2); font-size: 0.72rem; }
 

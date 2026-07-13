@@ -49,13 +49,16 @@ class SemanticCache:
         if items:
             self._store[tenant] = [e for e in items if now - e.ts <= ttl]
 
-    async def get(self, tenant_id: str, text: str) -> CachedResponse | None:
+    async def lookup(
+        self, tenant_id: str, text: str
+    ) -> tuple[CachedResponse | None, list[float] | None]:
+        """Retorna (resposta_em_cache, embedding). O embedding é reaproveitado no store."""
         settings = get_settings()
         if not settings.cache_enabled:
-            return None
+            return None, None
         emb = await embed(text)
         if emb is None:
-            return None
+            return None, None
         now = time.time()
         self._prune(tenant_id, now, settings.cache_ttl_seconds)
         best: _Entry | None = None
@@ -65,18 +68,17 @@ class SemanticCache:
             if score > best_score:
                 best_score, best = score, entry
         if best and best_score >= settings.cache_threshold:
-            return best.response
-        return None
+            return best.response, emb
+        return None, emb
 
-    async def put(self, tenant_id: str, text: str, response: CachedResponse) -> None:
-        settings = get_settings()
-        if not settings.cache_enabled or not response.content:
-            return
-        emb = await embed(text)
-        if emb is None:
+    async def store(
+        self, tenant_id: str, embedding: list[float] | None, response: CachedResponse
+    ) -> None:
+        """Guarda a resposta usando o embedding já calculado no lookup (sem recalcular)."""
+        if embedding is None or not get_settings().cache_enabled or not response.content:
             return
         self._store.setdefault(tenant_id, []).append(
-            _Entry(embedding=emb, response=response, ts=time.time())
+            _Entry(embedding=embedding, response=response, ts=time.time())
         )
 
 
