@@ -120,6 +120,7 @@ tests/                 # pytest
 - **F4 Cache semântico real** ✅ embeddings locais (Ollama) + store vetorial por tenant; serve prompts similares sem chamar o provedor (`x-nexus-cache: hit`) e contabiliza a economia
 - **F5 Billing** ✅ planos em BRL (quotas mensais + rpm por plano), aba **Plano & Cobrança**, checkout Stripe com **Pix/boleto/cartão** (opcional, atrás de chave) + modo dev
 - **F6 Hardening** ✅ redação de PII (LGPD) + guardrail para provedores hospedados, `/metrics` (Prometheus), retries em erros transitórios
+- **Recursos avançados** ✅ observabilidade (logs de requisição + tracing, opt-in de prévias com redação PII); `/v1/models` e `/v1/embeddings` (OpenAI-compat, BYOK); **chaves virtuais** (orçamento mensal, rpm e allowlist de modelos por chave); **Playground** no painel; **fallback** configurável (`fallback: ["provider:model", ...]`)
 - **Deploy / GA** 🚧 ver [DEPLOY.md](DEPLOY.md) — cache vetorial em Redis, cloud KMS, testes de carga, Pix em produção
 
 ## Segurança

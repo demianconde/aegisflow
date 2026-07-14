@@ -14,7 +14,17 @@ from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
-from app.api import admin, billing, chat, health, provider_keys, proxy, usage
+from app.api import (
+    admin,
+    billing,
+    chat,
+    health,
+    openai_compat,
+    playground,
+    provider_keys,
+    proxy,
+    usage,
+)
 from app.config import get_settings
 from app.logging_config import configure_logging, get_logger
 from app.metrics import render_prometheus
@@ -76,7 +86,9 @@ def create_app() -> FastAPI:
     app.include_router(provider_keys.router)
     app.include_router(usage.router)
     app.include_router(billing.router)
+    app.include_router(playground.router)
     app.include_router(chat.router)
+    app.include_router(openai_compat.router)
     app.include_router(proxy.router)
 
     @app.get("/", include_in_schema=False)

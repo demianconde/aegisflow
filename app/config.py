@@ -42,6 +42,8 @@ class Settings(BaseSettings):
 
     # Segurança (Fase 6): redige PII antes de enviar a provedores hospedados.
     pii_guard: bool = Field(default=False, alias="NEXUS_PII_GUARD")
+    # Observabilidade: registra prévia (redigida) de prompt/resposta nos logs. Opt-in.
+    log_content: bool = Field(default=False, alias="NEXUS_LOG_CONTENT")
     # Permite endpoints de provedor em rede privada/local (self-host). Em SaaS: false.
     allow_private_endpoints: bool = Field(default=False, alias="NEXUS_ALLOW_PRIVATE_ENDPOINTS")
     # Rate limit / quota: se true, bloqueia quando o Redis está indisponível (fail-closed).

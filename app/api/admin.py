@@ -13,7 +13,7 @@ from app.auth.supabase import get_current_user
 from app.db.models import NexusApiKey, Tenant, User
 from app.db.session import get_db
 
-from .schemas import ApiKeyCreate, ApiKeyCreated, ApiKeyInfo, MeResponse
+from .schemas import ApiKeyCreate, ApiKeyCreated, ApiKeyInfo, ApiKeyLimits, MeResponse
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
@@ -65,6 +65,25 @@ async def create_key(
         revoked_at=record.revoked_at,
         api_key=full_key,
     )
+
+
+@router.patch("/keys/{key_id}", response_model=ApiKeyInfo)
+async def update_key_limits(
+    key_id: uuid.UUID,
+    body: ApiKeyLimits,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> ApiKeyInfo:
+    """Define limites da chave virtual: orçamento mensal, rpm e allowlist de modelos."""
+    record = await db.get(NexusApiKey, key_id)
+    if record is None or record.tenant_id != user.tenant_id:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chave não encontrada")
+    record.monthly_budget_usd = body.monthly_budget_usd
+    record.rpm_limit = body.rpm_limit
+    record.allowed_models = (body.allowed_models or "").strip() or None
+    await db.commit()
+    await db.refresh(record)
+    return ApiKeyInfo.model_validate(record)
 
 
 @router.delete("/keys/{key_id}", status_code=status.HTTP_204_NO_CONTENT, response_class=Response)

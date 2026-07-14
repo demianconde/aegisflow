@@ -27,6 +27,9 @@ class ApiKeyInfo(BaseModel):
     name: str
     created_at: datetime
     revoked_at: datetime | None = None
+    monthly_budget_usd: float | None = None
+    rpm_limit: int | None = None
+    allowed_models: str | None = None
 
 
 class ApiKeyCreated(ApiKeyInfo):
@@ -69,3 +72,18 @@ class ChatCompletionRequest(BaseModel):
     stream: bool = False
     max_tokens: int | None = None
     temperature: float | None = None
+    # Cadeia de fallback: itens "provider:model" ou "model" tentados se o principal falhar.
+    fallback: list[str] | None = None
+
+
+class EmbeddingsRequest(BaseModel):
+    model: str
+    input: str | list[str]
+    provider: str | None = None
+
+
+# ---------- Chaves virtuais / limites por chave ----------
+class ApiKeyLimits(BaseModel):
+    monthly_budget_usd: float | None = None
+    rpm_limit: int | None = None
+    allowed_models: str | None = None  # csv de modelos permitidos (vazio = todos)

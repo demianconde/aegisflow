@@ -8,13 +8,17 @@ from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 
-from app.auth.api_key import get_api_tenant
-from app.db.models import Tenant
+from app.auth.api_key import ApiContext, get_api_context
 
 router = APIRouter(prefix="/v1", tags=["proxy"])
 
 
 @router.get("/whoami")
-async def whoami(tenant: Tenant = Depends(get_api_tenant)) -> dict:
+async def whoami(ctx: ApiContext = Depends(get_api_context)) -> dict:
     """Retorna o tenant resolvido a partir da x-api-key (após passar pelo rate limit)."""
-    return {"tenant_id": str(tenant.id), "tenant_name": tenant.name, "plan": tenant.plan}
+    return {
+        "tenant_id": str(ctx.tenant.id),
+        "tenant_name": ctx.tenant.name,
+        "plan": ctx.tenant.plan,
+        "api_key": ctx.key.name,
+    }

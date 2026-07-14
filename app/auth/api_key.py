@@ -2,6 +2,9 @@
 
 Formato: ``nxg_<8 hex>.<segredo>``. Guardamos apenas o prefixo (para lookup) e o
 hash SHA-256 da chave completa. O valor em claro só é mostrado uma vez, na criação.
+
+Suporta **chaves virtuais**: limites de rpm, orçamento mensal (USD) e allowlist de
+modelos por chave.
 """
 
 from __future__ import annotations
@@ -9,16 +12,24 @@ from __future__ import annotations
 import hashlib
 import hmac
 import secrets
+from dataclasses import dataclass
 
 from fastapi import Depends, Header, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.billing.plans import get_plan
 from app.db.models import NexusApiKey, Tenant
 from app.db.session import get_db
-from app.ratelimit import enforce_rate_limit
+from app.ratelimit import enforce_minute, enforce_monthly_quota
 
 _PREFIX_NAMESPACE = "nxg_"
+
+
+@dataclass
+class ApiContext:
+    tenant: Tenant
+    key: NexusApiKey
 
 
 def generate_api_key() -> tuple[str, str, str]:
@@ -39,16 +50,15 @@ def _parse_prefix(full_key: str) -> str | None:
     return full_key.split(".", 1)[0]
 
 
-async def get_api_tenant(
+async def get_api_context(
     x_api_key: str | None = Header(default=None, alias="x-api-key"),
     db: AsyncSession = Depends(get_db),
-) -> Tenant:
-    """Dependência do proxy: resolve o tenant a partir da x-api-key e aplica rate limit."""
+) -> ApiContext:
+    """Resolve tenant + chave da x-api-key e aplica limites (plano e chave virtual)."""
     if not x_api_key:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="Header x-api-key é obrigatório"
         )
-
     prefix = _parse_prefix(x_api_key)
     if not prefix:
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chave de API inválida")
@@ -59,15 +69,20 @@ async def get_api_tenant(
             NexusApiKey.revoked_at.is_(None),
         )
     )
-    key_record = result.scalar_one_or_none()
-    # Comparação em tempo constante mesmo quando a chave não existe.
-    expected_hash = key_record.key_hash if key_record else "0" * 64
-    if key_record is None or not hmac.compare_digest(expected_hash, hash_key(x_api_key)):
+    key = result.scalar_one_or_none()
+    expected_hash = key.key_hash if key else "0" * 64
+    if key is None or not hmac.compare_digest(expected_hash, hash_key(x_api_key)):
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chave de API inválida")
 
-    tenant = await db.get(Tenant, key_record.tenant_id)
+    tenant = await db.get(Tenant, key.tenant_id)
     if tenant is None or tenant.status != "active":
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inativo")
 
-    await enforce_rate_limit(str(tenant.id), tenant.plan)
-    return tenant
+    plan = get_plan(tenant.plan)
+    # Rate limit por minuto: chave virtual pode ter limite próprio (senão, o do plano).
+    effective_rpm = key.rpm_limit if key.rpm_limit is not None else plan.rpm
+    await enforce_minute(f"key:{key.id}", effective_rpm)
+    # Quota mensal de requisições (nível tenant/plano).
+    await enforce_monthly_quota(str(tenant.id), plan.monthly_quota, plan.label)
+
+    return ApiContext(tenant=tenant, key=key)

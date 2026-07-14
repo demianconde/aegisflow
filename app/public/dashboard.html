@@ -34,6 +34,8 @@
             <div class="tabs">
                 <button class="tab-btn active" data-tab="painel">Chaves &amp; Credenciais</button>
                 <button class="tab-btn" data-tab="uso">Uso &amp; Economia</button>
+                <button class="tab-btn" data-tab="logs">Logs</button>
+                <button class="tab-btn" data-tab="playground">Playground</button>
                 <button class="tab-btn" data-tab="cobranca">Plano &amp; Cobrança</button>
             </div>
 
@@ -125,6 +127,44 @@
                 </div>
             </div><!-- /tab-uso -->
 
+            <div id="tab-logs" style="display:none">
+                <div class="panel glass">
+                    <div class="panel-head">
+                        <h2>Logs de requisições</h2>
+                        <div class="row-inline">
+                            <select class="input" id="logStatus" style="max-width:160px">
+                                <option value="">Todos os status</option>
+                                <option value="ok">ok</option>
+                                <option value="error">error</option>
+                            </select>
+                            <button class="btn btn-ghost btn-sm" id="logRefresh">Atualizar</button>
+                        </div>
+                    </div>
+                    <p class="muted" style="font-size:0.8rem;margin-bottom:1rem">Prévias de prompt/resposta (redigidas para LGPD) só aparecem se <code>NEXUS_LOG_CONTENT=true</code> no servidor.</p>
+                    <div id="logsContainer"><div class="empty">Carregando…</div></div>
+                </div>
+            </div><!-- /tab-logs -->
+
+            <div id="tab-playground" style="display:none">
+                <div class="panel glass">
+                    <div class="panel-head"><h2>Playground</h2></div>
+                    <div class="field">
+                        <label for="pgModel">Modelo <span class="muted">(use <code>nexus-auto</code> para roteamento automático)</span></label>
+                        <input class="input" id="pgModel" value="nexus-auto">
+                    </div>
+                    <div class="field">
+                        <label for="pgProvider">Provider <span class="muted">(opcional)</span></label>
+                        <input class="input" id="pgProvider" placeholder="ex.: google, ollama (vazio = inferir)">
+                    </div>
+                    <div class="field">
+                        <label for="pgPrompt">Prompt</label>
+                        <textarea class="input" id="pgPrompt" rows="4" placeholder="Digite sua mensagem...">Explique o que é um LLM gateway em uma frase.</textarea>
+                    </div>
+                    <button class="btn btn-primary" id="pgRun">Executar</button>
+                    <div id="pgResult" style="margin-top:1.5rem"></div>
+                </div>
+            </div><!-- /tab-playground -->
+
             <div id="tab-cobranca" style="display:none">
                 <div class="stat-grid">
                     <div class="stat glass"><div class="k">Plano atual</div><div class="v" id="bPlan">—</div></div>
@@ -212,15 +252,23 @@
                     keysContainer.innerHTML = '<div class="empty">Nenhuma chave ainda. Crie a primeira acima.</div>';
                     return;
                 }
-                let html = '<table class="table"><thead><tr><th>Nome</th><th>Prefixo</th><th>Criada</th><th>Status</th><th></th></tr></thead><tbody>';
+                let html = '<table class="table"><thead><tr><th>Nome</th><th>Prefixo</th><th>Limites</th><th>Status</th><th></th></tr></thead><tbody>';
                 for (const k of keys) {
                     const revoked = !!k.revoked_at;
+                    const limits = [];
+                    if (k.monthly_budget_usd != null) limits.push('$' + k.monthly_budget_usd + '/mês');
+                    if (k.rpm_limit != null) limits.push(k.rpm_limit + ' rpm');
+                    if (k.allowed_models) limits.push('modelos: ' + k.allowed_models);
+                    const limitsTxt = limits.length ? escapeHtml(limits.join(' · ')) : '<span class="text-mono-mut">sem limites</span>';
+                    const actions = revoked ? '' :
+                        '<button class="btn btn-ghost btn-sm" data-limits="' + k.id + '">Limites</button> '
+                        + '<button class="btn btn-danger btn-sm" data-revoke="' + k.id + '">Revogar</button>';
                     html += '<tr>'
                         + '<td>' + escapeHtml(k.name) + '</td>'
                         + '<td class="mono">' + escapeHtml(k.key_prefix) + '…</td>'
-                        + '<td>' + fmtDate(k.created_at) + '</td>'
+                        + '<td style="font-size:0.78rem">' + limitsTxt + '</td>'
                         + '<td><span class="badge-status ' + (revoked ? 'revoked' : 'active') + '">' + (revoked ? 'revogada' : 'ativa') + '</span></td>'
-                        + '<td>' + (revoked ? '' : '<button class="btn btn-danger btn-sm" data-revoke="' + k.id + '">Revogar</button>') + '</td>'
+                        + '<td>' + actions + '</td>'
                         + '</tr>';
                 }
                 html += '</tbody></table>';
@@ -229,6 +277,30 @@
                 keysContainer.querySelectorAll('[data-revoke]').forEach(btn => {
                     btn.addEventListener('click', () => revokeKey(btn.getAttribute('data-revoke')));
                 });
+                keysContainer.querySelectorAll('[data-limits]').forEach(btn => {
+                    btn.addEventListener('click', () => editKeyLimits(btn.getAttribute('data-limits')));
+                });
+            }
+
+            async function editKeyLimits(id) {
+                clearMsg();
+                const budget = prompt('Orçamento mensal em USD (vazio = sem limite):', '');
+                if (budget === null) return;
+                const rpm = prompt('Limite de requisições por minuto (vazio = usar plano):', '');
+                if (rpm === null) return;
+                const models = prompt('Modelos permitidos, separados por vírgula (vazio = todos):', '');
+                if (models === null) return;
+                try {
+                    const payload = {
+                        monthly_budget_usd: budget.trim() ? parseFloat(budget) : null,
+                        rpm_limit: rpm.trim() ? parseInt(rpm) : null,
+                        allowed_models: models.trim() || null,
+                    };
+                    const res = await api('/v1/admin/keys/' + id, { method: 'PATCH', body: JSON.stringify(payload) });
+                    if (!res.ok) throw new Error('falha ao salvar limites');
+                    showMsg('Limites atualizados.', 'ok');
+                    await loadKeys();
+                } catch (err) { showMsg(err.message, 'error'); }
             }
 
             function escapeHtml(s) {
@@ -463,21 +535,72 @@
                 } catch (err) { showMsg(err.message, 'error'); }
             }
 
+            // ----- Logs -----
+            async function loadLogs() {
+                const st = document.getElementById('logStatus').value;
+                const res = await api('/v1/admin/logs?limit=50' + (st ? '&status=' + st : ''));
+                if (!res.ok) throw new Error('falha ao carregar logs');
+                const { logs } = await res.json();
+                const cont = document.getElementById('logsContainer');
+                if (!logs.length) { cont.innerHTML = '<div class="empty">Sem requisições ainda.</div>'; return; }
+                const hasPreview = logs.some(l => l.prompt_preview || l.response_preview);
+                let html = '<table class="table"><thead><tr><th>Quando</th><th>Provider</th><th>Modelo</th><th>Status</th><th class="num">Tokens</th><th class="num">Custo</th><th class="num">ms</th>' + (hasPreview ? '<th>Prompt→Resposta</th>' : '') + '</tr></thead><tbody>';
+                for (const l of logs) {
+                    const when = l.ts ? new Date(l.ts).toLocaleString('pt-BR') : '';
+                    const badge = l.status === 'ok' ? 'active' : 'revoked';
+                    const cache = l.cache_hit ? ' <span class="badge-status active">cache</span>' : '';
+                    const prev = hasPreview ? '<td class="muted" style="font-size:0.72rem;max-width:280px">' + escapeHtml((l.prompt_preview||'') + (l.response_preview? ' → ' + l.response_preview : '')).slice(0,160) + '</td>' : '';
+                    html += '<tr>'
+                        + '<td style="font-size:0.75rem">' + when + '</td>'
+                        + '<td>' + escapeHtml(l.provider) + '</td>'
+                        + '<td class="mono" style="font-size:0.78rem">' + escapeHtml(l.model_used) + cache + '</td>'
+                        + '<td><span class="badge-status ' + badge + '">' + l.status + '</span></td>'
+                        + '<td class="num">' + fmtInt(l.prompt_tokens + l.completion_tokens) + '</td>'
+                        + '<td class="num">' + fmtUsd(l.cost_usd) + '</td>'
+                        + '<td class="num">' + fmtInt(l.latency_ms) + '</td>'
+                        + prev + '</tr>';
+                }
+                cont.innerHTML = html + '</tbody></table>';
+            }
+            document.getElementById('logRefresh').addEventListener('click', () => loadLogs().catch(e => showMsg(e.message,'error')));
+            document.getElementById('logStatus').addEventListener('change', () => loadLogs().catch(e => showMsg(e.message,'error')));
+
+            // ----- Playground -----
+            document.getElementById('pgRun').addEventListener('click', async () => {
+                const btn = document.getElementById('pgRun');
+                const out = document.getElementById('pgResult');
+                clearMsg(); btn.disabled = true; out.innerHTML = '<span class="muted">Executando…</span>';
+                try {
+                    const payload = {
+                        model: document.getElementById('pgModel').value.trim() || 'nexus-auto',
+                        provider: document.getElementById('pgProvider').value.trim() || null,
+                        messages: [{ role: 'user', content: document.getElementById('pgPrompt').value }],
+                    };
+                    const res = await api('/v1/admin/playground', { method: 'POST', body: JSON.stringify(payload) });
+                    const d = await res.json();
+                    if (!res.ok) throw new Error(d.detail || 'falha');
+                    out.innerHTML = '<div class="stat glass" style="margin-bottom:1rem">'
+                        + '<div class="k">Rota escolhida</div><div class="v" style="font-size:1rem">'
+                        + escapeHtml(d.provider) + ' · ' + escapeHtml(d.model)
+                        + (d.routed ? ' <span class="badge-status active">' + escapeHtml(d.complexity||'') + '</span>' : '')
+                        + '</div><div class="muted" style="font-size:0.75rem;margin-top:0.35rem">'
+                        + fmtInt(d.usage.prompt_tokens + d.usage.completion_tokens) + ' tokens · ' + fmtUsd(d.cost_usd) + '</div></div>'
+                        + '<div class="key-reveal" style="white-space:pre-wrap">' + escapeHtml(d.content) + '</div>';
+                } catch (err) { out.innerHTML = ''; showMsg(err.message, 'error'); }
+                finally { btn.disabled = false; }
+            });
+
             // ----- Abas -----
             document.querySelectorAll('.tab-btn').forEach(btn => {
                 btn.addEventListener('click', async () => {
                     const tab = btn.getAttribute('data-tab');
                     document.querySelectorAll('.tab-btn').forEach(b => b.classList.toggle('active', b === btn));
-                    document.getElementById('tab-painel').style.display = tab === 'painel' ? '' : 'none';
-                    document.getElementById('tab-uso').style.display = tab === 'uso' ? '' : 'none';
-                    document.getElementById('tab-cobranca').style.display = tab === 'cobranca' ? '' : 'none';
+                    ['painel','uso','logs','playground','cobranca'].forEach(t =>
+                        document.getElementById('tab-' + t).style.display = t === tab ? '' : 'none');
                     try {
-                        if (tab === 'uso') {
-                            if (!pricingCatalog.length) await loadPricing();
-                            await loadUsage();
-                        } else if (tab === 'cobranca') {
-                            await loadBilling();
-                        }
+                        if (tab === 'uso') { if (!pricingCatalog.length) await loadPricing(); await loadUsage(); }
+                        else if (tab === 'cobranca') { await loadBilling(); }
+                        else if (tab === 'logs') { await loadLogs(); }
                     } catch (err) { showMsg(err.message, 'error'); }
                 });
             });

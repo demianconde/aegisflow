@@ -7,12 +7,59 @@ ajustar o catálogo corrige os valores retroativamente.
 from __future__ import annotations
 
 import uuid
+from datetime import UTC, datetime
 
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import UsageLog
 from app.routing.pricing import cost_usd, price_of
+
+
+async def key_month_spend(db: AsyncSession, api_key_id: uuid.UUID) -> float:
+    """Gasto (USD) atribuído a uma chave no mês corrente."""
+    now = datetime.now(UTC)
+    start = datetime(now.year, now.month, 1, tzinfo=UTC)
+    stmt = select(func.coalesce(func.sum(UsageLog.cost_usd), 0)).where(
+        UsageLog.api_key_id == api_key_id, UsageLog.ts >= start
+    )
+    return float((await db.execute(stmt)).scalar() or 0)
+
+
+async def recent_logs(
+    db: AsyncSession,
+    tenant_id: uuid.UUID,
+    *,
+    limit: int = 50,
+    offset: int = 0,
+    model: str | None = None,
+    status: str | None = None,
+) -> list[dict]:
+    """Logs de requisição recentes do tenant (para a aba de observabilidade)."""
+    stmt = select(UsageLog).where(UsageLog.tenant_id == tenant_id)
+    if model:
+        stmt = stmt.where(UsageLog.model_used == model)
+    if status:
+        stmt = stmt.where(UsageLog.status == status)
+    stmt = stmt.order_by(UsageLog.ts.desc()).limit(min(limit, 200)).offset(offset)
+    rows = (await db.execute(stmt)).scalars().all()
+    return [
+        {
+            "request_id": r.request_id,
+            "ts": r.ts.isoformat() if r.ts else None,
+            "provider": r.provider,
+            "model_used": r.model_used,
+            "status": r.status,
+            "cache_hit": r.cache_hit,
+            "prompt_tokens": r.prompt_tokens,
+            "completion_tokens": r.completion_tokens,
+            "cost_usd": float(r.cost_usd),
+            "latency_ms": r.latency_ms,
+            "prompt_preview": r.prompt_preview,
+            "response_preview": r.response_preview,
+        }
+        for r in rows
+    ]
 
 
 async def usage_summary(db: AsyncSession, tenant_id: uuid.UUID) -> dict:

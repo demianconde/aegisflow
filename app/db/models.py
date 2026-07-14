@@ -66,6 +66,10 @@ class NexusApiKey(Base):
     key_prefix: Mapped[str] = mapped_column(String(16), unique=True, nullable=False, index=True)
     key_hash: Mapped[str] = mapped_column(String(128), nullable=False)
     name: Mapped[str] = mapped_column(String(255), nullable=False)
+    # Chave virtual: limites por chave (nulo = usa o do plano / sem limite).
+    monthly_budget_usd: Mapped[float | None] = mapped_column(Numeric(12, 4), nullable=True)
+    rpm_limit: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    allowed_models: Mapped[str | None] = mapped_column(String(1000), nullable=True)  # csv
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
@@ -106,6 +110,9 @@ class UsageLog(Base):
     tenant_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
+    api_key_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("nexus_api_keys.id", ondelete="SET NULL"), nullable=True, index=True
+    )
     request_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     provider: Mapped[str] = mapped_column(String(50), nullable=False)
     model_requested: Mapped[str] = mapped_column(String(100), nullable=False)
@@ -115,7 +122,10 @@ class UsageLog(Base):
     cost_usd: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
     cost_saved_usd: Mapped[float] = mapped_column(Numeric(12, 6), nullable=False, default=0)
     cache_hit: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    status: Mapped[str] = mapped_column(String(20), nullable=False, default="ok")
     latency_ms: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    prompt_preview: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    response_preview: Mapped[str | None] = mapped_column(String(500), nullable=True)
     ts: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False, index=True
     )
