@@ -107,6 +107,11 @@ def create_app() -> FastAPI:
     async def dashboard_page() -> FileResponse:
         return FileResponse(PUBLIC_DIR / "dashboard.html")
 
+    @app.get("/documentacao", include_in_schema=False)
+    @app.get("/docs-nexus", include_in_schema=False)
+    async def docs_page() -> FileResponse:
+        return FileResponse(PUBLIC_DIR / "docs.html")
+
     # Console do dono — rota "secreta" (não linkada em lugar nenhum). Aceita a
     # versão acentuada e a ASCII (a acentuada é percent-encoded pelo browser).
     @app.get("/gestaonexus", include_in_schema=False)
