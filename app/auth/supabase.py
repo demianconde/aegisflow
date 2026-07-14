@@ -94,3 +94,25 @@ async def get_current_user(
 
     supabase_user = await verify_supabase_token(token)
     return await _get_or_create_user(db, supabase_user)
+
+
+async def require_owner(authorization: str | None = Header(default=None)) -> dict:
+    """Dependência do console do dono: exige e-mail Supabase na allowlist de owners."""
+    settings = get_settings()
+    token = extract_bearer(authorization)
+    if not token:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="Login obrigatório")
+
+    # Bypass dev: só fora de produção e se algum owner estiver configurado.
+    if settings.dev_bypass_enabled and token == DEV_ACCESS_TOKEN:
+        return {"email": "dev-owner@nexusgate.local", "id": "dev-owner"}
+
+    user = await verify_supabase_token(token)
+    email = (user.get("email") or "").lower()
+    owners = settings.owner_email_set
+    if not owners or email not in owners:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Acesso restrito ao dono do NexusGate.",
+        )
+    return user

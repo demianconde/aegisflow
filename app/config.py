@@ -36,6 +36,8 @@ class Settings(BaseSettings):
     # Supabase (Fase 1)
     supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
     supabase_anon_key: str | None = Field(default=None, alias="SUPABASE_ANON_KEY")
+    # E-mails com acesso ao console do dono (/gestaonexus), separados por vírgula.
+    owner_emails: str = Field(default="", alias="NEXUS_OWNER_EMAILS")
 
     # Envelope encryption (Fase 2)
     master_key: str | None = Field(default=None, alias="NEXUS_MASTER_KEY")
@@ -79,6 +81,10 @@ class Settings(BaseSettings):
     @property
     def cors_origin_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]
+
+    @property
+    def owner_email_set(self) -> set[str]:
+        return {e.strip().lower() for e in self.owner_emails.split(",") if e.strip()}
 
     @property
     def ratelimit_fail_closed_effective(self) -> bool:

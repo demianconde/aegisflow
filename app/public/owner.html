@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="robots" content="noindex, nofollow">
+    <title>NexusGate · Gestão</title>
+    <link rel="stylesheet" href="/static/styles.css">
+    <script src="/static/vendor/supabase.js"></script>
+</head>
+<body>
+    <div class="bg-blobs"><div class="blob b1"></div><div class="blob b2"></div></div>
+
+    <nav class="nav dash-nav glass">
+        <div class="container nav-inner">
+            <div class="logo"><span class="mark">∞</span><span>NexusGate · Gestão</span></div>
+            <div class="nav-cta">
+                <span class="link-quiet" id="ownerEmail"></span>
+                <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none">Sair</button>
+            </div>
+        </div>
+    </nav>
+
+    <main class="dash-main">
+        <div class="container">
+            <div class="msg" id="msg"></div>
+
+            <!-- Tela de login -->
+            <div id="loginView" class="auth-wrap" style="min-height:60vh">
+                <div class="auth-card glass">
+                    <div class="auth-logo"><span class="mark">∞</span><span>Gestão NexusGate</span></div>
+                    <p class="auth-sub">Acesso restrito ao dono.</p>
+                    <div class="msg" id="loginMsg"></div>
+                    <button class="btn btn-primary btn-block" id="googleBtn">Entrar com Google</button>
+                    <div class="divider">ou</div>
+                    <div class="field"><label for="email">E-mail (link mágico)</label>
+                        <input class="input" id="email" type="email" placeholder="voce@gmail.com"></div>
+                    <button class="btn btn-ghost btn-block" id="magicBtn">Enviar link mágico</button>
+                </div>
+            </div>
+
+            <!-- Console -->
+            <div id="consoleView" style="display:none">
+                <div class="dash-head"><div><h1>Gestão</h1><p class="muted">Assinaturas, receita e leads</p></div></div>
+
+                <div class="stat-grid">
+                    <div class="stat glass"><div class="k">MRR (receita recorrente)</div><div class="v" id="mrr">—</div></div>
+                    <div class="stat glass"><div class="k">Assinaturas pagas</div><div class="v" id="subs">—</div></div>
+                    <div class="stat glass"><div class="k">Leads (novos)</div><div class="v" id="leads">—</div></div>
+                    <div class="stat glass"><div class="k">Requisições (total)</div><div class="v" id="reqs">—</div></div>
+                </div>
+
+                <div class="panel glass">
+                    <div class="panel-head"><h2>Leads</h2></div>
+                    <div id="leadsContainer"><div class="empty">Carregando…</div></div>
+                </div>
+
+                <div class="panel glass">
+                    <div class="panel-head"><h2>Assinaturas / Tenants</h2></div>
+                    <div id="subsContainer"><div class="empty">Carregando…</div></div>
+                </div>
+            </div>
+        </div>
+    </main>
+
+    <script>
+        (function () {
+            const msg = document.getElementById('msg');
+            const loginMsg = document.getElementById('loginMsg');
+            const loginView = document.getElementById('loginView');
+            const consoleView = document.getElementById('consoleView');
+            let client = null, token = null;
+
+            const showMsg = (t, k) => { msg.textContent = t; msg.className = 'msg show ' + k; };
+            const fmtBRL = (n) => (n || 0).toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' });
+            const fmtInt = (n) => (n || 0).toLocaleString('pt-BR');
+            const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;' }[c]));
+
+            async function api(path, opts = {}) {
+                const res = await fetch(path, { ...opts, headers: { 'Authorization': 'Bearer ' + token, 'Content-Type': 'application/json', ...(opts.headers||{}) } });
+                return res;
+            }
+
+            async function loadAll() {
+                const ov = await api('/v1/owner/overview');
+                if (ov.status === 403) { showAccessDenied(); return; }
+                if (!ov.ok) throw new Error('falha ao carregar');
+                const d = await ov.json();
+                document.getElementById('mrr').textContent = fmtBRL(d.mrr_brl);
+                document.getElementById('subs').textContent = fmtInt(d.active_paid_subscriptions);
+                document.getElementById('leads').textContent = fmtInt(d.new_leads) + ' / ' + fmtInt(d.total_leads);
+                document.getElementById('reqs').textContent = fmtInt(d.total_requests);
+
+                const lr = await (await api('/v1/owner/leads')).json();
+                renderLeads(lr.leads || []);
+                const sr = await (await api('/v1/owner/subscriptions')).json();
+                renderSubs(sr.tenants || []);
+            }
+
+            function renderLeads(leads) {
+                const c = document.getElementById('leadsContainer');
+                if (!leads.length) { c.innerHTML = '<div class="empty">Nenhum lead ainda.</div>'; return; }
+                let h = '<table class="table"><thead><tr><th>Quando</th><th>Nome</th><th>E-mail</th><th>Empresa</th><th>Gasto/mês</th><th>Status</th><th></th></tr></thead><tbody>';
+                for (const l of leads) {
+                    const when = l.created_at ? new Date(l.created_at).toLocaleDateString('pt-BR') : '';
+                    h += '<tr>'
+                        + '<td style="font-size:0.75rem">' + when + '</td>'
+                        + '<td>' + esc(l.name) + (l.message ? '<div class="muted" style="font-size:0.72rem">' + esc(l.message).slice(0,80) + '</div>' : '') + '</td>'
+                        + '<td class="mono" style="font-size:0.78rem">' + esc(l.email) + '</td>'
+                        + '<td>' + esc(l.company) + '</td>'
+                        + '<td>' + esc(l.monthly_spend) + '</td>'
+                        + '<td><span class="badge-status ' + (l.status==='converted'?'active':'revoked') + '">' + esc(l.status) + '</span></td>'
+                        + '<td><select class="input" style="font-size:0.75rem;padding:0.3rem" data-lead="' + l.id + '">'
+                        + ['new','contacted','converted','discarded'].map(s => '<option ' + (s===l.status?'selected':'') + '>' + s + '</option>').join('')
+                        + '</select></td></tr>';
+                }
+                c.innerHTML = h + '</tbody></table>';
+                c.querySelectorAll('[data-lead]').forEach(sel => sel.addEventListener('change', async () => {
+                    await api('/v1/owner/leads/' + sel.getAttribute('data-lead'), { method: 'PATCH', body: JSON.stringify({ status: sel.value }) });
+                    loadAll();
+                }));
+            }
+
+            function renderSubs(tenants) {
+                const c = document.getElementById('subsContainer');
+                if (!tenants.length) { c.innerHTML = '<div class="empty">Nenhum tenant ainda.</div>'; return; }
+                let h = '<table class="table"><thead><tr><th>Tenant</th><th>Plano</th><th class="num">Valor/mês</th><th>Status</th><th>Desde</th></tr></thead><tbody>';
+                for (const t of tenants) {
+                    h += '<tr><td>' + esc(t.name) + '</td><td>' + esc(t.plan_label) + '</td>'
+                        + '<td class="num">' + fmtBRL(t.price_brl) + '</td>'
+                        + '<td><span class="badge-status ' + (t.status==='active'?'active':'revoked') + '">' + esc(t.status) + '</span></td>'
+                        + '<td style="font-size:0.75rem">' + (t.created_at ? new Date(t.created_at).toLocaleDateString('pt-BR') : '') + '</td></tr>';
+                }
+                c.innerHTML = h + '</tbody></table>';
+            }
+
+            function showAccessDenied() {
+                loginView.style.display = 'none';
+                consoleView.style.display = 'none';
+                showMsg('Acesso negado: este e-mail não é o dono do NexusGate.', 'error');
+                document.getElementById('logoutBtn').style.display = '';
+            }
+
+            function showConsole(email) {
+                loginView.style.display = 'none';
+                consoleView.style.display = '';
+                document.getElementById('ownerEmail').textContent = email || '';
+                document.getElementById('logoutBtn').style.display = '';
+                loadAll().catch(e => showMsg(e.message, 'error'));
+            }
+
+            async function init() {
+                let cfg;
+                try { cfg = await (await fetch('/public-config')).json(); } catch (e) { cfg = {}; }
+
+                // Modo dev: entra direto (bypass).
+                if (cfg.dev_mode) {
+                    token = 'dev-local-access';
+                    showConsole('dev-owner@nexusgate.local');
+                    return;
+                }
+                if (!cfg.configured) { loginMsg.textContent = 'Supabase não configurado.'; loginMsg.className = 'msg show warn'; return; }
+                client = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key);
+                const { data } = await client.auth.getSession();
+                if (data.session) { token = data.session.access_token; showConsole(data.session.user.email); }
+            }
+
+            document.getElementById('googleBtn').addEventListener('click', async () => {
+                if (!client) return;
+                await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/gestaonexus' } });
+            });
+            document.getElementById('magicBtn').addEventListener('click', async () => {
+                if (!client) return;
+                const email = document.getElementById('email').value.trim();
+                if (!email) return;
+                const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/gestaonexus' } });
+                loginMsg.className = 'msg show ' + (error ? 'error' : 'ok');
+                loginMsg.textContent = error ? error.message : 'Link enviado! Verifique seu e-mail.';
+            });
+            document.getElementById('logoutBtn').addEventListener('click', async () => {
+                try { if (client) await client.auth.signOut(); } catch (e) {}
+                window.location.reload();
+            });
+
+            init();
+        })();
+    </script>
+</body>
+</html>

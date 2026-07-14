@@ -87,3 +87,16 @@ class ApiKeyLimits(BaseModel):
     monthly_budget_usd: float | None = None
     rpm_limit: int | None = None
     allowed_models: str | None = None  # csv de modelos permitidos (vazio = todos)
+
+
+# ---------- Leads (captação de interesse) ----------
+class LeadCreate(BaseModel):
+    name: str
+    email: str
+    company: str | None = None
+    message: str | None = None
+    monthly_spend: str | None = None
+
+
+class LeadStatusUpdate(BaseModel):
+    status: str  # new | contacted | converted | discarded

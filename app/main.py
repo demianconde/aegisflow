@@ -19,7 +19,9 @@ from app.api import (
     billing,
     chat,
     health,
+    leads,
     openai_compat,
+    owner,
     playground,
     provider_keys,
     proxy,
@@ -87,6 +89,8 @@ def create_app() -> FastAPI:
     app.include_router(usage.router)
     app.include_router(billing.router)
     app.include_router(playground.router)
+    app.include_router(leads.router)
+    app.include_router(owner.router)
     app.include_router(chat.router)
     app.include_router(openai_compat.router)
     app.include_router(proxy.router)
@@ -102,6 +106,13 @@ def create_app() -> FastAPI:
     @app.get("/dashboard", include_in_schema=False)
     async def dashboard_page() -> FileResponse:
         return FileResponse(PUBLIC_DIR / "dashboard.html")
+
+    # Console do dono — rota "secreta" (não linkada em lugar nenhum). Aceita a
+    # versão acentuada e a ASCII (a acentuada é percent-encoded pelo browser).
+    @app.get("/gestaonexus", include_in_schema=False)
+    @app.get("/gestãonexus", include_in_schema=False)
+    async def owner_console() -> FileResponse:
+        return FileResponse(PUBLIC_DIR / "owner.html")
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics(request: Request) -> PlainTextResponse:
