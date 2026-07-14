@@ -94,29 +94,33 @@ def create_app() -> FastAPI:
     app.include_router(openai_compat.router)
     app.include_router(proxy.router)
 
+    # HTML sempre revalidado (evita servir páginas antigas do cache do navegador).
+    def _html(name: str) -> FileResponse:
+        return FileResponse(PUBLIC_DIR / name, headers={"Cache-Control": "no-cache"})
+
     @app.get("/", include_in_schema=False)
     async def landing() -> FileResponse:
-        return FileResponse(PUBLIC_DIR / "landing.html")
+        return _html("landing.html")
 
     @app.get("/login", include_in_schema=False)
     async def login_page() -> FileResponse:
-        return FileResponse(PUBLIC_DIR / "login.html")
+        return _html("login.html")
 
     @app.get("/dashboard", include_in_schema=False)
     async def dashboard_page() -> FileResponse:
-        return FileResponse(PUBLIC_DIR / "dashboard.html")
+        return _html("dashboard.html")
 
     @app.get("/documentacao", include_in_schema=False)
     @app.get("/docs-nexus", include_in_schema=False)
     async def docs_page() -> FileResponse:
-        return FileResponse(PUBLIC_DIR / "docs.html")
+        return _html("docs.html")
 
     # Console do dono — rota "secreta" (não linkada em lugar nenhum). Aceita a
     # versão acentuada e a ASCII (a acentuada é percent-encoded pelo browser).
     @app.get("/gestaonexus", include_in_schema=False)
     @app.get("/gestãonexus", include_in_schema=False)
     async def owner_console() -> FileResponse:
-        return FileResponse(PUBLIC_DIR / "owner.html")
+        return _html("owner.html")
 
     @app.get("/metrics", include_in_schema=False)
     async def metrics(request: Request) -> PlainTextResponse:
