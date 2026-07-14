@@ -179,7 +179,8 @@
             });
             document.getElementById('logoutBtn').addEventListener('click', async () => {
                 try { if (client) await client.auth.signOut(); } catch (e) {}
-                window.location.reload();
+                localStorage.removeItem('nexus_token');
+                window.location.href = '/';
             });
 
             init();
