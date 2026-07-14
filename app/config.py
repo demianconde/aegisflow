@@ -4,7 +4,7 @@ from __future__ import annotations
 
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -32,6 +32,20 @@ class Settings(BaseSettings):
         alias="DATABASE_URL",
     )
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
+
+    @field_validator("database_url")
+    @classmethod
+    def _ensure_async_driver(cls, v: str) -> str:
+        """Aceita a URL nativa de provedores (Railway/Supabase/Heroku), que vem como
+        ``postgres://`` ou ``postgresql://``, e garante o driver async (``asyncpg``)
+        exigido pelo SQLAlchemy/Alembic. URLs que já trazem driver (``+asyncpg``,
+        ``+psycopg``) passam intactas.
+        """
+        if v.startswith("postgres://"):  # esquema legado (Heroku)
+            v = "postgresql://" + v[len("postgres://") :]
+        if v.startswith("postgresql://"):  # sem driver → adiciona asyncpg
+            v = "postgresql+asyncpg://" + v[len("postgresql://") :]
+        return v
 
     # Supabase (Fase 1)
     supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
