@@ -13,7 +13,7 @@ git add -A
 git commit -m "chore: config de deploy (Railway)"
 git push
 ```
-(O remote atual aponta para `nexusGate.git` — funciona; renomeie o repo depois se quiser.)
+(Repo: `github.com/demianconde/aegisflow`.)
 
 ## 2. Criar o projeto no Railway
 1. https://railway.app → **New Project → Deploy from GitHub repo** → selecione o repositório.
