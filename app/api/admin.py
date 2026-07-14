@@ -13,7 +13,14 @@ from app.auth.supabase import get_current_user
 from app.db.models import NexusApiKey, Tenant, User
 from app.db.session import get_db
 
-from .schemas import ApiKeyCreate, ApiKeyCreated, ApiKeyInfo, ApiKeyLimits, MeResponse
+from .schemas import (
+    ApiKeyCreate,
+    ApiKeyCreated,
+    ApiKeyInfo,
+    ApiKeyLimits,
+    GuardrailsConfig,
+    MeResponse,
+)
 
 router = APIRouter(prefix="/v1/admin", tags=["admin"])
 
@@ -27,6 +34,28 @@ async def me(
     return MeResponse(
         user_id=user.id, tenant_id=user.tenant_id, role=user.role, plan=tenant.plan
     )
+
+
+@router.get("/guardrails")
+async def get_guardrails(
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    tenant = await db.get(Tenant, user.tenant_id)
+    return {"pii": tenant.guardrail_pii, "blocked_terms": tenant.guardrail_blocked_terms or ""}
+
+
+@router.put("/guardrails")
+async def set_guardrails(
+    body: GuardrailsConfig,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+) -> dict:
+    tenant = await db.get(Tenant, user.tenant_id)
+    tenant.guardrail_pii = bool(body.pii)
+    tenant.guardrail_blocked_terms = (body.blocked_terms or "").strip() or None
+    await db.commit()
+    return {"pii": tenant.guardrail_pii, "blocked_terms": tenant.guardrail_blocked_terms or ""}
 
 
 @router.get("/keys", response_model=list[ApiKeyInfo])

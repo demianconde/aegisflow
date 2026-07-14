@@ -31,6 +31,9 @@ class Tenant(Base):
     plan: Mapped[str] = mapped_column(String(50), nullable=False, default="free")
     status: Mapped[str] = mapped_column(String(50), nullable=False, default="active")
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    # Guardrails (config por tenant)
+    guardrail_pii: Mapped[bool] = mapped_column(Boolean, nullable=False, default=False)
+    guardrail_blocked_terms: Mapped[str | None] = mapped_column(String(2000), nullable=True)
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )

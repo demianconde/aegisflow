@@ -32,8 +32,8 @@ PLANS: dict[str, Plan] = {
         monthly_quota=500_000,
         features=(
             "Roteamento avançado + fallback",
-            "Relatório de economia auditável",
-            "Multi-provider",
+            "Multi-provider (qualquer LLM/local)",
+            "Relatório de economia exportável (CSV)",
         ),
     ),
     "enterprise": Plan(
@@ -42,7 +42,12 @@ PLANS: dict[str, Plan] = {
         price_brl=999.0,
         rpm=6_000,
         monthly_quota=5_000_000,
-        features=("Tudo do Pro", "Guardrails / redação de PII (LGPD)", "SLA 99.9%"),
+        features=(
+            "Tudo do Pro",
+            "Chaves virtuais (orçamento e limite por chave)",
+            "Guardrails + redação de PII (LGPD)",
+            "Logs de requisições",
+        ),
     ),
 }
 

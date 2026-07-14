@@ -100,3 +100,9 @@ class LeadCreate(BaseModel):
 
 class LeadStatusUpdate(BaseModel):
     status: str  # new | contacted | converted | discarded
+
+
+# ---------- Guardrails ----------
+class GuardrailsConfig(BaseModel):
+    pii: bool = False
+    blocked_terms: str | None = None  # csv de termos bloqueados

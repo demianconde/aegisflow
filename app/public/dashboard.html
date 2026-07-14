@@ -98,6 +98,18 @@
                     <div class="empty">Carregando credenciais…</div>
                 </div>
             </div>
+            <div class="panel glass">
+                <div class="panel-head"><h2>Guardrails &amp; LGPD</h2></div>
+                <p class="muted" style="font-size:0.85rem;margin-bottom:1rem">Proteções aplicadas às requisições do seu tenant.</p>
+                <label style="display:flex;align-items:center;gap:0.6rem;margin-bottom:1rem;cursor:pointer">
+                    <input type="checkbox" id="gPii"> Redigir PII (CPF, CNPJ, e-mail, telefone, cartão) antes de enviar a provedores hospedados
+                </label>
+                <div class="field">
+                    <label for="gBlocked">Termos bloqueados <span class="muted">(separados por vírgula — requisições que os contenham são recusadas)</span></label>
+                    <input class="input" id="gBlocked" type="text" placeholder="ex.: senha, cartão de crédito, segredo">
+                </div>
+                <button class="btn btn-primary" id="gSave">Salvar guardrails</button>
+            </div>
             </div><!-- /tab-painel -->
 
             <div id="tab-uso" style="display:none">
@@ -122,7 +134,10 @@
                 </div>
 
                 <div class="panel glass">
-                    <div class="panel-head"><h2>Consumo por LLM</h2></div>
+                    <div class="panel-head">
+                        <h2>Consumo por LLM</h2>
+                        <button class="btn btn-ghost btn-sm" id="exportBtn">⬇ Exportar CSV</button>
+                    </div>
                     <div id="usageContainer"><div class="empty">Carregando uso…</div></div>
                 </div>
             </div><!-- /tab-uso -->
@@ -518,14 +533,24 @@
                 const cont = document.getElementById('plansContainer');
                 cont.innerHTML = b.plans.map(p => {
                     const current = p.key === b.plan;
+                    const pending = p.key === b.pending_plan;
                     const feats = p.features.map(f => '<li>' + escapeHtml(f) + '</li>').join('');
-                    return '<div class="plan glass' + (current ? ' featured' : '') + '">'
-                        + (current ? '<span class="tag">Atual</span>' : '')
+                    let tag = '';
+                    if (current) tag = '<span class="tag">Atual</span>';
+                    else if (pending) tag = '<span class="tag" style="background:#eab308">Agendado</span>';
+                    let note = '';
+                    if (pending) note = '<p class="pct" style="color:#fde047;margin-bottom:0.75rem">↓ Downgrade inicia em ' + fmtDay(b.period_end) + '</p>';
+                    let btn;
+                    if (current) btn = '<button class="btn btn-outline" disabled>Plano atual</button>';
+                    else if (pending) btn = '<button class="btn btn-outline" disabled>Agendado p/ ' + fmtDay(b.period_end) + '</button>';
+                    else btn = '<button class="btn btn-primary" data-plan="' + p.key + '">Escolher</button>';
+                    return '<div class="plan glass' + (current ? ' featured' : '') + (pending ? ' featured' : '') + '">'
+                        + tag
                         + '<h3>' + escapeHtml(p.label) + '</h3>'
+                        + note
                         + '<div class="price"><span class="amt">R$ ' + fmtInt(p.price_brl) + '</span><span class="per">/mês</span></div>'
                         + '<ul><li>' + fmtInt(p.rpm) + ' req/min</li><li>' + fmtInt(p.monthly_quota) + ' req/mês</li>' + feats + '</ul>'
-                        + (current ? '<button class="btn btn-outline" disabled>Plano atual</button>'
-                                   : '<button class="btn btn-primary" data-plan="' + p.key + '">Escolher</button>')
+                        + btn
                         + '</div>';
                 }).join('');
                 cont.querySelectorAll('[data-plan]').forEach(btn => {
@@ -550,6 +575,40 @@
                     await loadBilling();
                 } catch (err) { ch.className = 'msg show error'; ch.textContent = err.message; }
             }
+
+            // ----- Guardrails -----
+            async function loadGuardrails() {
+                try {
+                    const g = await (await api('/v1/admin/guardrails')).json();
+                    document.getElementById('gPii').checked = !!g.pii;
+                    document.getElementById('gBlocked').value = g.blocked_terms || '';
+                } catch (e) { /* ignora */ }
+            }
+            document.getElementById('gSave').addEventListener('click', async () => {
+                clearMsg();
+                try {
+                    const res = await api('/v1/admin/guardrails', { method: 'PUT', body: JSON.stringify({
+                        pii: document.getElementById('gPii').checked,
+                        blocked_terms: document.getElementById('gBlocked').value.trim() || null,
+                    })});
+                    if (!res.ok) throw new Error('falha ao salvar');
+                    showMsg('Guardrails atualizados.', 'ok');
+                } catch (err) { showMsg(err.message, 'error'); }
+            });
+
+            // ----- Exportar CSV -----
+            document.getElementById('exportBtn').addEventListener('click', async () => {
+                try {
+                    const res = await api('/v1/admin/usage/export');
+                    if (!res.ok) throw new Error('falha ao exportar');
+                    const blob = await res.blob();
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url; a.download = 'nexusgate-economia.csv';
+                    document.body.appendChild(a); a.click(); a.remove();
+                    URL.revokeObjectURL(url);
+                } catch (err) { showMsg(err.message, 'error'); }
+            });
 
             // ----- Logs -----
             async function loadLogs() {
@@ -652,6 +711,7 @@
                     await loadKeys();
                     await loadKnownProviders();
                     await loadProviderKeys();
+                    await loadGuardrails();
                 } catch (err) {
                     if (err.message !== 'não autorizado') showMsg(err.message, 'error');
                 }

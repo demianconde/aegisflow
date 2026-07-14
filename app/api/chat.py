@@ -34,6 +34,7 @@ from app.providers.service import (
 )
 from app.routing.pricing import cost_usd, infer_provider
 from app.routing.router import choose_route, estimate_complexity
+from app.security.guardrails import blocked_term
 from app.security.net import validate_endpoint_async
 from app.security.pii import redact_messages, redact_pii
 from app.usage import key_month_spend, record_usage
@@ -204,9 +205,12 @@ async def chat_completions(
     if body.temperature is not None:
         base_upstream["temperature"] = body.temperature
 
+    redact_pii_on = settings.pii_guard or ctx.tenant.guardrail_pii
+
     def upstream_for(att: Attempt) -> dict:
         up = {**base_upstream, "model": att.model}
-        if settings.pii_guard and not att.is_local:
+        # Guardrail LGPD: redige PII antes de provedores hospedados (nunca para local).
+        if redact_pii_on and not att.is_local:
             up["messages"] = redact_messages(up["messages"])
         return up
 
@@ -214,6 +218,14 @@ async def chat_completions(
     baseline = plan.baseline_model
     cache = get_cache()
     cache_text = prompt_text(base_upstream["messages"])
+
+    # Guardrail: bloqueio por termos configurados pelo tenant.
+    hit = blocked_term(cache_text, ctx.tenant.guardrail_blocked_terms)
+    if hit:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="Requisição bloqueada pela política de conteúdo (guardrail).",
+        )
 
     # ---------- cache semântico ----------
     cached, cache_emb = await cache.lookup(str(tenant_id), cache_text)
