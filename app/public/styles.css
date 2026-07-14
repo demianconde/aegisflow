@@ -124,17 +124,24 @@ section { position: relative; }
 .doc-nav a { display: block; color: var(--muted); padding: 0.35rem 0.5rem; border-radius: 0.4rem; }
 .doc-nav a:hover { color: #fff; background: var(--panel); }
 .doc-nav .grp { color: var(--muted-2); font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.05em; margin: 0.9rem 0 0.3rem; }
-.doc-content { min-width: 0; }
+.doc-content { min-width: 0; max-width: 760px; }
 .doc-content h1 { font-size: 2rem; font-weight: 700; margin-bottom: 0.5rem; }
-.doc-content h2 { font-size: 1.4rem; font-weight: 700; margin: 2.5rem 0 0.75rem; scroll-margin-top: 6rem; padding-top: 0.5rem; border-top: 1px solid var(--border); }
-.doc-content h3 { font-size: 1.05rem; font-weight: 600; margin: 1.5rem 0 0.5rem; }
+.doc-content h3 { font-size: 1rem; font-weight: 600; margin: 1.25rem 0 0.5rem; color: #e2e8f0; }
 .doc-content p, .doc-content li { color: var(--muted); line-height: 1.7; }
 .doc-content ul { margin: 0.5rem 0 0.5rem 1.2rem; }
 .doc-content strong { color: #e2e8f0; }
-.doc-lead { font-size: 1.05rem; color: var(--muted); margin-bottom: 1rem; }
-.doc-pre { background: #0b1220; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem 1.1rem; overflow-x: auto; margin: 0.75rem 0; }
+.doc-lead { font-size: 1.05rem; color: var(--muted); margin-bottom: 1.5rem; }
+
+/* cada serviço em um card */
+.doc-card { border: 1px solid var(--border); border-radius: 1rem; padding: 1.6rem 1.75rem; margin-bottom: 1.25rem; scroll-margin-top: 6rem; }
+.doc-card > h2 { display: flex; align-items: center; gap: 0.6rem; font-size: 1.3rem; font-weight: 700; margin: 0 0 0.5rem; }
+.doc-card > h2 .num { display: inline-flex; align-items: center; justify-content: center; width: 1.6rem; height: 1.6rem; border-radius: 0.5rem; background: rgba(20,184,166,0.15); color: var(--brand-400); font-size: 0.8rem; font-weight: 700; flex: 0 0 auto; }
+.doc-card > h2 .doc-tag { margin-left: auto; }
+.doc-card p:first-of-type { margin-top: 0.25rem; }
+
+.doc-pre { background: #0b1220; border: 1px solid var(--border); border-radius: 0.6rem; padding: 1rem 1.1rem; overflow-x: auto; margin: 0.9rem 0 0.3rem; }
 .doc-pre code { color: #cbd5e1; font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace; font-size: 0.82rem; line-height: 1.6; white-space: pre; }
-.doc-endpoint { display: inline-flex; align-items: center; gap: 0.5rem; font-family: ui-monospace, monospace; font-size: 0.85rem; background: var(--panel); border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.3rem 0.7rem; margin: 0.5rem 0; }
+.doc-endpoint { display: flex; width: fit-content; max-width: 100%; align-items: center; gap: 0.5rem; font-family: ui-monospace, monospace; font-size: 0.85rem; background: #0b1220; border: 1px solid var(--border); border-radius: 0.5rem; padding: 0.4rem 0.75rem; margin: 0.5rem 0; color: #cbd5e1; }
 .doc-method { font-weight: 700; font-size: 0.72rem; padding: 0.1rem 0.45rem; border-radius: 0.3rem; }
 .doc-method.get { background: rgba(20,184,166,0.15); color: var(--brand-300); }
 .doc-method.post { background: rgba(59,130,246,0.15); color: #93c5fd; }

@@ -47,24 +47,29 @@
         <!-- Conteúdo -->
         <main class="doc-content">
             <h1>Documentação</h1>
-            <p class="doc-lead">O NexusGate é um <strong>gateway de LLM</strong> compatível com o formato da API da OpenAI. Você troca a <code>base_url</code> da sua aplicação e usa uma chave do NexusGate — nós roteamos para o modelo mais barato que resolve, reaproveitamos respostas com cache e usamos a sua própria chave do provedor (BYOK).</p>
+            <p class="doc-lead">O NexusGate é um <strong>gateway de LLM</strong> compatível com o formato da API da OpenAI. Troque a <code>base_url</code> da sua aplicação e use uma chave do NexusGate — nós roteamos para o modelo mais barato que resolve, reaproveitamos respostas com cache e usamos a sua própria chave do provedor (BYOK).</p>
 
-            <h2 id="visao">Visão geral</h2>
-            <p>Existem dois planos de acesso, com credenciais diferentes:</p>
-            <ul>
-                <li><strong>Plano de dados</strong> (suas aplicações): autentica com uma <strong>chave do NexusGate</strong> no header <code>x-api-key</code>. É por aqui que passam as chamadas de IA.</li>
-                <li><strong>Painel</strong> (você/seu time): login via Supabase para gerenciar chaves, credenciais BYOK, ver uso e cobrança.</li>
-            </ul>
-            <div class="doc-note">Base URL: <code>https://api.nexusgate.com.br/v1</code> (produção) — em desenvolvimento, <code>http://localhost:8000/v1</code>.</div>
+            <section class="doc-card glass" id="visao">
+                <h2><span class="num">1</span> Visão geral</h2>
+                <p>Existem dois planos de acesso, com credenciais diferentes:</p>
+                <ul>
+                    <li><strong>Plano de dados</strong> (suas aplicações): autentica com uma <strong>chave do NexusGate</strong> no header <code>x-api-key</code>. É por aqui que passam as chamadas de IA.</li>
+                    <li><strong>Painel</strong> (você/seu time): login via Supabase para gerenciar chaves, credenciais BYOK, ver uso e cobrança.</li>
+                </ul>
+                <div class="doc-note">Base URL: <code>https://api.nexusgate.com.br/v1</code> (produção) — em dev, <code>http://localhost:8000/v1</code>.</div>
+            </section>
 
-            <h2 id="auth">Autenticação</h2>
-            <p>Toda chamada ao proxy exige o header <code>x-api-key</code> com uma chave gerada no painel (formato <code>nxg_....</code>). A chave em claro é mostrada <strong>uma única vez</strong>, na criação.</p>
-            <div class="doc-pre"><code>x-api-key: nxg_a1b2c3d4.seu-segredo-aqui</code></div>
-            <p>Sem a chave → <code>401</code>. Chave inválida/revogada → <code>403</code>.</p>
+            <section class="doc-card glass" id="auth">
+                <h2><span class="num">2</span> Autenticação</h2>
+                <p>Toda chamada ao proxy exige o header <code>x-api-key</code> com uma chave gerada no painel (formato <code>nxg_....</code>). A chave em claro é mostrada <strong>uma única vez</strong>, na criação.</p>
+                <div class="doc-pre"><code>x-api-key: nxg_a1b2c3d4.seu-segredo-aqui</code></div>
+                <p>Sem a chave → <code>401</code>. Chave inválida/revogada → <code>403</code>.</p>
+            </section>
 
-            <h2 id="quickstart">Quickstart</h2>
-            <p>Use qualquer SDK compatível com OpenAI — só muda a <code>base_url</code> e a chave:</p>
-            <div class="doc-pre"><code>from openai import OpenAI
+            <section class="doc-card glass" id="quickstart">
+                <h2><span class="num">3</span> Quickstart</h2>
+                <p>Use qualquer SDK compatível com OpenAI — só muda a <code>base_url</code> e a chave:</p>
+                <div class="doc-pre"><code>from openai import OpenAI
 
 client = OpenAI(
     base_url="https://api.nexusgate.com.br/v1",
@@ -76,88 +81,113 @@ resp = client.chat.completions.create(
     messages=[{"role": "user", "content": "Escreva testes para esta função"}],
 )
 print(resp.choices[0].message.content)</code></div>
+            </section>
 
-            <h2 id="chat">Chat Completions <span class="doc-tag">plano de dados</span></h2>
-            <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/chat/completions</div>
-            <p>Proxy compatível com o formato OpenAI. Resolve a credencial BYOK do tenant, chama o provedor real (qualquer LLM, na nuvem ou local) e devolve a resposta. Suporta <strong>streaming (SSE)</strong> com <code>"stream": true</code>.</p>
-            <p><strong>Campos:</strong> <code>model</code>, <code>messages</code>, <code>provider</code> (opcional — inferido do modelo), <code>stream</code>, <code>max_tokens</code>, <code>temperature</code>, <code>fallback</code>.</p>
-            <div class="doc-pre"><code>curl https://api.nexusgate.com.br/v1/chat/completions \
+            <section class="doc-card glass" id="chat">
+                <h2><span class="num">4</span> Chat Completions <span class="doc-tag">plano de dados</span></h2>
+                <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/chat/completions</div>
+                <p>Proxy compatível com o formato OpenAI. Resolve a credencial BYOK do tenant, chama o provedor real (qualquer LLM, na nuvem ou local) e devolve a resposta. Suporta <strong>streaming (SSE)</strong> com <code>"stream": true</code>.</p>
+                <p><strong>Campos:</strong> <code>model</code>, <code>messages</code>, <code>provider</code> (opcional), <code>stream</code>, <code>max_tokens</code>, <code>temperature</code>, <code>fallback</code>.</p>
+                <div class="doc-pre"><code>curl https://api.nexusgate.com.br/v1/chat/completions \
   -H "x-api-key: nxg_..." -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o-mini",
     "messages": [{"role": "user", "content": "Olá!"}]
   }'</code></div>
+            </section>
 
-            <h2 id="roteamento">Roteamento — <code>nexus-auto</code></h2>
-            <p>Ao enviar <code>"model": "nexus-auto"</code>, o gateway classifica a complexidade da requisição e escolhe a rota mais econômica, com política <strong>local-first + escalonamento</strong>:</p>
-            <ul>
-                <li><strong>Local é o primeiro recurso</strong> (gratuito), para tarefas simples e complexas.</li>
-                <li>Se o local <strong>não der conta</strong> (falha/indisponível), <strong>escala</strong> para um modelo pago — o premium no caso de tarefa complexa.</li>
-                <li>Sem provedor local, escolhe direto o hospedado mais adequado ao tier.</li>
-            </ul>
-            <p>Cada resposta traz a decisão nos <a href="#headers">headers</a> (<code>x-nexus-model</code>, <code>x-nexus-complexity</code>, <code>x-nexus-routed</code>) e a economia é registrada em <a href="#uso">Uso &amp; Economia</a>.</p>
+            <section class="doc-card glass" id="roteamento">
+                <h2><span class="num">5</span> Roteamento — <code>nexus-auto</code></h2>
+                <p>Ao enviar <code>"model": "nexus-auto"</code>, o gateway classifica a complexidade e escolhe a rota mais econômica, com política <strong>local-first + escalonamento</strong>:</p>
+                <ul>
+                    <li><strong>Local é o primeiro recurso</strong> (gratuito), para tarefas simples e complexas.</li>
+                    <li>Se o local <strong>não der conta</strong> (falha/indisponível), <strong>escala</strong> para um modelo pago — o premium no caso de tarefa complexa.</li>
+                    <li>Sem provedor local, escolhe direto o hospedado mais adequado ao tier.</li>
+                </ul>
+                <p>A decisão vem nos <a href="#headers">headers</a> (<code>x-nexus-model</code>, <code>x-nexus-complexity</code>, <code>x-nexus-routed</code>) e a economia entra em <a href="#uso">Uso &amp; Economia</a>.</p>
+            </section>
 
-            <h2 id="fallback">Fallback</h2>
-            <p>Defina uma cadeia de reserva: se o modelo principal falhar, o gateway tenta os próximos automaticamente.</p>
-            <div class="doc-pre"><code>{
+            <section class="doc-card glass" id="fallback">
+                <h2><span class="num">6</span> Fallback</h2>
+                <p>Defina uma cadeia de reserva: se o modelo principal falhar, o gateway tenta os próximos automaticamente.</p>
+                <div class="doc-pre"><code>{
   "model": "gpt-4o-mini",
   "messages": [...],
   "fallback": ["google:gemini-2.5-flash", "ollama:qwen3.5:4b"]
 }</code></div>
-            <p>Cada item é <code>provider:model</code> ou apenas <code>model</code> (o provedor é inferido).</p>
+                <p>Cada item é <code>provider:model</code> ou apenas <code>model</code> (o provedor é inferido).</p>
+            </section>
 
-            <h2 id="cache">Cache semântico</h2>
-            <p>Requisições semanticamente parecidas não pagam duas vezes. Usamos embeddings para comparar o prompt com respostas anteriores do tenant; se a similaridade passar do limite, servimos a resposta do cache em milissegundos — sem chamar o provedor. O header <code>x-nexus-cache</code> indica <code>hit</code> ou <code>miss</code>, e a economia entra no relatório.</p>
-            <div class="doc-note">Configurável por tenant: limite de similaridade e TTL. Prompts diferentes não colidem.</div>
+            <section class="doc-card glass" id="cache">
+                <h2><span class="num">7</span> Cache semântico</h2>
+                <p>Requisições semanticamente parecidas não pagam duas vezes. Comparamos o prompt (via embeddings) com respostas anteriores do tenant; se a similaridade passar do limite, servimos do cache em milissegundos — sem chamar o provedor. O header <code>x-nexus-cache</code> indica <code>hit</code> ou <code>miss</code>.</p>
+                <div class="doc-note">Configurável por tenant: limite de similaridade e TTL. Prompts diferentes não colidem.</div>
+            </section>
 
-            <h2 id="models">Modelos <span class="doc-tag">plano de dados</span></h2>
-            <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/models</div>
-            <p>Lista, no formato OpenAI, os modelos disponíveis nos provedores que o seu tenant cadastrou (consulta cada provedor em tempo real).</p>
+            <section class="doc-card glass" id="models">
+                <h2><span class="num">8</span> Modelos <span class="doc-tag">plano de dados</span></h2>
+                <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/models</div>
+                <p>Lista, no formato OpenAI, os modelos disponíveis nos provedores que o seu tenant cadastrou (consulta cada provedor em tempo real).</p>
+            </section>
 
-            <h2 id="embeddings">Embeddings <span class="doc-tag">plano de dados</span></h2>
-            <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/embeddings</div>
-            <p>Gera embeddings via BYOK (OpenAI-compatível ou Ollama). Retorna no formato OpenAI.</p>
-            <div class="doc-pre"><code>curl https://api.nexusgate.com.br/v1/embeddings \
+            <section class="doc-card glass" id="embeddings">
+                <h2><span class="num">9</span> Embeddings <span class="doc-tag">plano de dados</span></h2>
+                <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/embeddings</div>
+                <p>Gera embeddings via BYOK (OpenAI-compatível ou Ollama). Retorna no formato OpenAI.</p>
+                <div class="doc-pre"><code>curl https://api.nexusgate.com.br/v1/embeddings \
   -H "x-api-key: nxg_..." -H "Content-Type: application/json" \
   -d '{"provider": "openai", "model": "text-embedding-3-small", "input": "olá"}'</code></div>
+            </section>
 
-            <h2 id="byok">Credenciais BYOK <span class="doc-tag">painel</span></h2>
-            <p>Você cadastra as chaves dos seus provedores (OpenAI, Anthropic, Gemini, Qwen…) ou aponta para um modelo <strong>local</strong> (Ollama, LM Studio, vLLM). Elas ficam <strong>cifradas em repouso com AES-256-GCM</strong> (envelope encryption) e só são descriptografadas em memória, no instante da chamada.</p>
-            <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/provider-keys</div>
-            <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/admin/provider-keys</div>
-            <p>Campos: <code>provider</code>, <code>api_key</code> (opcional para locais), <code>base_url</code> (opcional), <code>format</code> (<code>openai</code>/<code>anthropic</code>/<code>ollama</code>), <code>label</code>, <code>default_model</code>.</p>
+            <section class="doc-card glass" id="byok">
+                <h2><span class="num">10</span> Credenciais BYOK <span class="doc-tag">painel</span></h2>
+                <p>Cadastre as chaves dos seus provedores (OpenAI, Anthropic, Gemini, Qwen…) ou aponte para um modelo <strong>local</strong> (Ollama, LM Studio, vLLM). Ficam <strong>cifradas em repouso com AES-256-GCM</strong> e só são descriptografadas em memória, no instante da chamada.</p>
+                <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/provider-keys</div>
+                <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/admin/provider-keys</div>
+                <p>Campos: <code>provider</code>, <code>api_key</code> (opcional p/ locais), <code>base_url</code>, <code>format</code> (<code>openai</code>/<code>anthropic</code>/<code>ollama</code>), <code>label</code>, <code>default_model</code>.</p>
+            </section>
 
-            <h2 id="chaves">Chaves &amp; limites (chaves virtuais) <span class="doc-tag">painel</span></h2>
-            <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/admin/keys</div>
-            <div class="doc-endpoint"><span class="doc-method patch">PATCH</span> /v1/admin/keys/{id}</div>
-            <p>Crie chaves de API para suas apps e defina limites <strong>por chave</strong>: orçamento mensal (USD), rate limit (rpm) e <strong>allowlist de modelos</strong>. Uma chave só consegue usar os modelos permitidos e para de funcionar ao atingir o orçamento.</p>
+            <section class="doc-card glass" id="chaves">
+                <h2><span class="num">11</span> Chaves &amp; limites <span class="doc-tag">painel</span></h2>
+                <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/admin/keys</div>
+                <div class="doc-endpoint"><span class="doc-method patch">PATCH</span> /v1/admin/keys/{id}</div>
+                <p>Crie chaves de API para suas apps e defina limites <strong>por chave</strong> (chaves virtuais): orçamento mensal (USD), rate limit (rpm) e <strong>allowlist de modelos</strong>. A chave só usa os modelos permitidos e para ao atingir o orçamento.</p>
+            </section>
 
-            <h2 id="uso">Uso &amp; Economia <span class="doc-tag">painel</span></h2>
-            <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/usage/summary</div>
-            <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/logs</div>
-            <p>O resumo mostra tokens e custo por LLM, com o comparativo <em>"se tudo rodasse no mesmo LLM"</em> (economia auditável). Os logs trazem cada requisição (modelo, tokens, custo, latência, status, cache). Prévias de prompt/resposta são <strong>opt-in</strong> e sempre com redação de PII (LGPD).</p>
+            <section class="doc-card glass" id="uso">
+                <h2><span class="num">12</span> Uso &amp; Economia <span class="doc-tag">painel</span></h2>
+                <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/usage/summary</div>
+                <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/logs</div>
+                <p>O resumo mostra tokens e custo por LLM, com o comparativo <em>"se tudo rodasse no mesmo LLM"</em> (economia auditável). Os logs trazem cada requisição (modelo, tokens, custo, latência, status, cache). Prévias de prompt/resposta são <strong>opt-in</strong> e sempre com redação de PII (LGPD).</p>
+            </section>
 
-            <h2 id="planos">Planos &amp; Cobrança <span class="doc-tag">painel</span></h2>
-            <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/billing</div>
-            <p>Planos em BRL com quota mensal e rate limit por plano. Cobrança da <strong>orquestração</strong> — o consumo dos modelos é pago direto na sua chave (BYOK), <strong>sem markup sobre tokens</strong>.</p>
+            <section class="doc-card glass" id="planos">
+                <h2><span class="num">13</span> Planos &amp; Cobrança <span class="doc-tag">painel</span></h2>
+                <div class="doc-endpoint"><span class="doc-method get">GET</span> /v1/admin/billing</div>
+                <p>Planos em BRL com quota mensal e rate limit por plano. Cobrança da <strong>orquestração</strong> — o consumo dos modelos é pago direto na sua chave (BYOK), <strong>sem markup sobre tokens</strong>.</p>
+            </section>
 
-            <h2 id="headers">Headers de resposta</h2>
-            <ul>
-                <li><code>x-nexus-request-id</code> — id da requisição (rastreio nos logs).</li>
-                <li><code>x-nexus-model</code> / <code>x-nexus-provider</code> — modelo e provedor efetivamente usados.</li>
-                <li><code>x-nexus-cache</code> — <code>hit</code> ou <code>miss</code>.</li>
-                <li><code>x-nexus-complexity</code> / <code>x-nexus-routed</code> / <code>x-nexus-local</code> — decisão do <code>nexus-auto</code>.</li>
-            </ul>
+            <section class="doc-card glass" id="headers">
+                <h2><span class="num">14</span> Headers de resposta</h2>
+                <ul>
+                    <li><code>x-nexus-request-id</code> — id da requisição (rastreio nos logs).</li>
+                    <li><code>x-nexus-model</code> / <code>x-nexus-provider</code> — modelo e provedor usados.</li>
+                    <li><code>x-nexus-cache</code> — <code>hit</code> ou <code>miss</code>.</li>
+                    <li><code>x-nexus-complexity</code> / <code>x-nexus-routed</code> / <code>x-nexus-local</code> — decisão do <code>nexus-auto</code>.</li>
+                </ul>
+            </section>
 
-            <h2 id="seguranca">Segurança &amp; LGPD</h2>
-            <ul>
-                <li><strong>BYOK cifrado</strong> em repouso (AES-256-GCM); chaves nunca em logs.</li>
-                <li><strong>Redação de PII</strong> (CPF, CNPJ, e-mail, telefone, cartão) nos logs e, opcionalmente, antes de enviar a provedores hospedados.</li>
-                <li><strong>Isolamento por tenant</strong>, rate limit e quotas.</li>
-                <li>Proteção <strong>anti-SSRF</strong> nos endpoints de provedor.</li>
-            </ul>
+            <section class="doc-card glass" id="seguranca">
+                <h2><span class="num">15</span> Segurança &amp; LGPD</h2>
+                <ul>
+                    <li><strong>BYOK cifrado</strong> em repouso (AES-256-GCM); chaves nunca em logs.</li>
+                    <li><strong>Redação de PII</strong> (CPF, CNPJ, e-mail, telefone, cartão) nos logs e, opcionalmente, antes de enviar a provedores hospedados.</li>
+                    <li><strong>Isolamento por tenant</strong>, rate limit e quotas.</li>
+                    <li>Proteção <strong>anti-SSRF</strong> nos endpoints de provedor.</li>
+                </ul>
+            </section>
 
-            <p style="margin-top:2.5rem" class="muted">Dúvidas ou quer acesso antecipado? <a href="/#interesse" class="brand">Deixe seu interesse</a>.</p>
+            <p style="margin:1.5rem 0 3rem" class="muted">Dúvidas ou quer acesso antecipado? <a href="/#interesse" class="brand">Deixe seu interesse</a>.</p>
         </main>
     </div>
 </body>
