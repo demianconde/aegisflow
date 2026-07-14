@@ -2,12 +2,13 @@
 
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, Request
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.db.models import Lead
 from app.db.session import get_db
+from app.notify import send_lead_notification
 from app.ratelimit import enforce_minute
 
 from .schemas import LeadCreate
@@ -19,6 +20,7 @@ router = APIRouter(prefix="/v1", tags=["leads"])
 async def create_lead(
     body: LeadCreate,
     request: Request,
+    background: BackgroundTasks,
     db: AsyncSession = Depends(get_db),
 ) -> dict:
     """Registra um lead do formulário de interesse (público, com rate limit por IP)."""
@@ -57,4 +59,17 @@ async def create_lead(
             )
         )
     await db.commit()
+
+    # Notifica por e-mail (em background, best-effort — não afeta a resposta).
+    background.add_task(
+        send_lead_notification,
+        {
+            "name": name,
+            "email": email,
+            "company": company,
+            "monthly_spend": monthly_spend,
+            "message": message,
+            "source": "landing",
+        },
+    )
     return {"status": "ok", "message": "Obrigado! Entraremos em contato."}

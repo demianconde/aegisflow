@@ -102,6 +102,14 @@ class Settings(BaseSettings):
     # Métodos de pagamento do Checkout (assinatura): cartão é o confiável p/ recorrência.
     stripe_payment_methods: str = Field(default="card", alias="AEGIS_STRIPE_PAYMENT_METHODS")
 
+    # Notificação de novos leads por e-mail (SMTP). Se não configurado, é no-op.
+    smtp_host: str | None = Field(default=None, alias="SMTP_HOST")
+    smtp_port: int = Field(default=587, alias="SMTP_PORT")
+    smtp_user: str | None = Field(default=None, alias="SMTP_USER")
+    smtp_password: str | None = Field(default=None, alias="SMTP_PASSWORD")
+    smtp_from: str | None = Field(default=None, alias="SMTP_FROM")
+    leads_notify_email: str | None = Field(default=None, alias="LEADS_NOTIFY_EMAIL")
+
     @property
     def is_production(self) -> bool:
         return self.env.lower() == "production"
