@@ -42,10 +42,9 @@ class Settings(BaseSettings):
         não entende.
 
         - ``postgres://`` / ``postgresql://`` → ``postgresql+asyncpg://``
-        - ``sslmode=disable|allow|prefer`` → removido (asyncpg não usa SSL por padrão;
-          é o caso da rede interna do Fly, ``.flycast``)
-        - ``sslmode=require|verify-*`` → ``ssl=true`` (formato aceito pelo asyncpg)
-        - ``channel_binding`` → removido
+        - ``sslmode=<modo>`` → ``ssl=<modo>`` (o asyncpg usa o parâmetro ``ssl``, não
+          ``sslmode``; ex.: ``sslmode=require`` do Supabase vira ``ssl=require``)
+        - ``channel_binding`` → removido (o asyncpg não aceita)
         URLs que já trazem driver (``+asyncpg``, ``+psycopg``) mantêm o esquema.
         """
         if v.startswith("postgres://"):  # esquema legado (Heroku)
@@ -61,9 +60,9 @@ class Settings(BaseSettings):
             if key == "channel_binding":
                 continue
             if key == "sslmode":
-                if val.lower() in ("require", "verify-ca", "verify-full"):
-                    kept.append(("ssl", "true"))
-                continue  # disable/allow/prefer: asyncpg dispensa o parâmetro
+                if val:  # renomeia sslmode→ssl mantendo o modo (require, verify-*, ...)
+                    kept.append(("ssl", val.lower()))
+                continue
             kept.append((key, val))
         return urlunsplit(parts._replace(query=urlencode(kept)))
 
