@@ -98,7 +98,7 @@
                 <div class="card glass"><div class="icon">🔀</div><h3>Roteamento por custo</h3><p>Cada prompt é classificado por complexidade e tamanho. Tarefas simples vão para modelos baratos; as complexas, para os premium. Com catálogo de preços real, calculamos quanto você economizou em cada chamada.</p></div>
                 <div class="card glass"><div class="icon">🔐</div><h3>BYOK sem markup</h3><p>Suas chaves de OpenAI, Anthropic e Qwen ficam cifradas em repouso com AES-256-GCM e são usadas só em memória, no instante da chamada. Você paga o provedor direto, no seu preço — <strong>sem pedágio sobre tokens</strong>.</p></div>
                 <div class="card glass"><div class="icon">⚡</div><h3>Cache semântico</h3><p>Requisições parecidas não pagam duas vezes. Usamos embeddings reais e busca vetorial no Redis para servir respostas repetidas em milissegundos — cortando custo e latência de vez.</p></div>
-                <div class="card glass"><div class="icon">🔌</div><h3>Multi-provider unificado</h3><p>Uma única API compatível com o formato OpenAI para falar com OpenAI, Anthropic e Qwen. Streaming de verdade (SSE) e fallback entre provedores, sem reescrever integração.</p></div>
+                <div class="card glass"><div class="icon">🔌</div><h3>Qualquer LLM, unificado</h3><p>Uma única API compatível com o formato OpenAI para falar com praticamente qualquer modelo — na nuvem ou <strong>local</strong> (ex.: GPT, Claude, Gemini, Llama, Ollama…). Streaming real (SSE) e fallback entre provedores, sem reescrever integração.</p></div>
                 <div class="card glass"><div class="icon">📈</div><h3>Economia auditável</h3><p>Não é só um número bonito no painel. Você recebe um relatório de economia por modelo e período, com metodologia clara e exportável — pronto para provar o ROI para o financeiro.</p></div>
                 <div class="card glass"><div class="icon">🛡️</div><h3>LGPD, guardrails &amp; segurança</h3><p>Redação de PII, filtros de conteúdo e isolamento por tenant. Dados hospedados no Brasil e processo aderente à LGPD — feito para empresas que levam privacidade a sério.</p></div>
             </div>
@@ -210,7 +210,7 @@ resp = client.chat.completions.create(
                     <h3>Pro</h3>
                     <p class="desc">Para engenheiros solo e pequenas equipes.</p>
                     <div class="price"><span class="amt">R$ 249</span><span class="per">/mês</span></div>
-                    <ul><li>600 requisições/min</li><li>Roteamento avançado + fallback</li><li>Relatório de economia auditável</li><li>Cache semântico com TTL configurável</li><li>Multi-provider (OpenAI/Anthropic/Qwen)</li></ul>
+                    <ul><li>600 requisições/min</li><li>Roteamento avançado + fallback</li><li>Relatório de economia auditável</li><li>Cache semântico com TTL configurável</li><li>Qualquer LLM, na nuvem ou local (ex.: GPT, Claude, Gemini, Llama, Ollama…)</li></ul>
                     <a href="#interesse" class="btn btn-primary">Tenho interesse</a>
                 </div>
                 <div class="plan glass">
