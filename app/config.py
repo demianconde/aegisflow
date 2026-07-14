@@ -16,19 +16,19 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    # App — default seguro: production (dev precisa setar NEXUS_ENV=development).
-    env: str = Field(default="production", alias="NEXUS_ENV")
-    port: int = Field(default=8000, alias="NEXUS_PORT")
-    log_level: str = Field(default="INFO", alias="NEXUS_LOG_LEVEL")
-    log_json: bool = Field(default=False, alias="NEXUS_LOG_JSON")
+    # App — default seguro: production (dev precisa setar AEGIS_ENV=development).
+    env: str = Field(default="production", alias="AEGIS_ENV")
+    port: int = Field(default=8000, alias="AEGIS_PORT")
+    log_level: str = Field(default="INFO", alias="AEGIS_LOG_LEVEL")
+    log_json: bool = Field(default=False, alias="AEGIS_LOG_JSON")
 
     # Modo de desenvolvimento: habilita bypass de login no painel.
     # NUNCA tem efeito em produção (ver dev_bypass_enabled).
-    dev_mode: bool = Field(default=False, alias="NEXUS_DEV_MODE")
+    dev_mode: bool = Field(default=False, alias="AEGIS_DEV_MODE")
 
     # Infra
     database_url: str = Field(
-        default="postgresql+asyncpg://postgres:postgres@localhost:5432/nexusgate",
+        default="postgresql+asyncpg://postgres:postgres@localhost:5432/aegisflow",
         alias="DATABASE_URL",
     )
     redis_url: str = Field(default="redis://localhost:6379/0", alias="REDIS_URL")
@@ -36,38 +36,38 @@ class Settings(BaseSettings):
     # Supabase (Fase 1)
     supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
     supabase_anon_key: str | None = Field(default=None, alias="SUPABASE_ANON_KEY")
-    # E-mails com acesso ao console do dono (/gestaonexus), separados por vírgula.
-    owner_emails: str = Field(default="", alias="NEXUS_OWNER_EMAILS")
+    # E-mails com acesso ao console do dono (/gestaoaegis), separados por vírgula.
+    owner_emails: str = Field(default="", alias="AEGIS_OWNER_EMAILS")
 
     # Envelope encryption (Fase 2)
-    master_key: str | None = Field(default=None, alias="NEXUS_MASTER_KEY")
+    master_key: str | None = Field(default=None, alias="AEGIS_MASTER_KEY")
 
     # Segurança (Fase 6): redige PII antes de enviar a provedores hospedados.
-    pii_guard: bool = Field(default=False, alias="NEXUS_PII_GUARD")
+    pii_guard: bool = Field(default=False, alias="AEGIS_PII_GUARD")
     # Observabilidade: registra prévia (redigida) de prompt/resposta nos logs. Opt-in.
-    log_content: bool = Field(default=False, alias="NEXUS_LOG_CONTENT")
+    log_content: bool = Field(default=False, alias="AEGIS_LOG_CONTENT")
     # Permite endpoints de provedor em rede privada/local (self-host). Em SaaS: false.
-    allow_private_endpoints: bool = Field(default=False, alias="NEXUS_ALLOW_PRIVATE_ENDPOINTS")
+    allow_private_endpoints: bool = Field(default=False, alias="AEGIS_ALLOW_PRIVATE_ENDPOINTS")
     # Rate limit / quota: se true, bloqueia quando o Redis está indisponível (fail-closed).
-    ratelimit_fail_closed: bool = Field(default=False, alias="NEXUS_RATELIMIT_FAIL_CLOSED")
+    ratelimit_fail_closed: bool = Field(default=False, alias="AEGIS_RATELIMIT_FAIL_CLOSED")
     # CORS: origens permitidas em produção (separadas por vírgula).
-    cors_origins: str = Field(default="", alias="NEXUS_CORS_ORIGINS")
+    cors_origins: str = Field(default="", alias="AEGIS_CORS_ORIGINS")
     # Token opcional para proteger /metrics.
-    metrics_token: str | None = Field(default=None, alias="NEXUS_METRICS_TOKEN")
+    metrics_token: str | None = Field(default=None, alias="AEGIS_METRICS_TOKEN")
 
     # Cache semântico (Fase 4)
-    cache_enabled: bool = Field(default=True, alias="NEXUS_CACHE_ENABLED")
-    cache_threshold: float = Field(default=0.92, alias="NEXUS_CACHE_THRESHOLD")
-    cache_ttl_seconds: int = Field(default=7 * 24 * 3600, alias="NEXUS_CACHE_TTL")
-    cache_max_entries: int = Field(default=1000, alias="NEXUS_CACHE_MAX_ENTRIES")  # teto por tenant
-    embed_url: str = Field(default="http://localhost:11434", alias="NEXUS_EMBED_URL")
-    embed_model: str | None = Field(default=None, alias="NEXUS_EMBED_MODEL")
+    cache_enabled: bool = Field(default=True, alias="AEGIS_CACHE_ENABLED")
+    cache_threshold: float = Field(default=0.92, alias="AEGIS_CACHE_THRESHOLD")
+    cache_ttl_seconds: int = Field(default=7 * 24 * 3600, alias="AEGIS_CACHE_TTL")
+    cache_max_entries: int = Field(default=1000, alias="AEGIS_CACHE_MAX_ENTRIES")  # teto por tenant
+    embed_url: str = Field(default="http://localhost:11434", alias="AEGIS_EMBED_URL")
+    embed_model: str | None = Field(default=None, alias="AEGIS_EMBED_MODEL")
 
     # Stripe (Fase 5) — em homologação use chaves de TESTE (sk_test_... / whsec_...).
     stripe_secret_key: str | None = Field(default=None, alias="STRIPE_SECRET_KEY")
     stripe_webhook_secret: str | None = Field(default=None, alias="STRIPE_WEBHOOK_SECRET")
     # Métodos de pagamento do Checkout (assinatura): cartão é o confiável p/ recorrência.
-    stripe_payment_methods: str = Field(default="card", alias="NEXUS_STRIPE_PAYMENT_METHODS")
+    stripe_payment_methods: str = Field(default="card", alias="AEGIS_STRIPE_PAYMENT_METHODS")
 
     @property
     def is_production(self) -> bool:

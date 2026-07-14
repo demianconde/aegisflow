@@ -9,7 +9,7 @@ from app.config import Settings, get_settings
 
 def _settings(**over) -> Settings:
     get_settings.cache_clear()
-    base = {"NEXUS_ENV": "production", "NEXUS_DEV_MODE": "false"}
+    base = {"AEGIS_ENV": "production", "AEGIS_DEV_MODE": "false"}
     base.update(over)
     return Settings(**{k: v for k, v in base.items()})
 
@@ -23,19 +23,19 @@ def test_default_env_is_production():
 
 
 def test_dev_bypass_never_in_production():
-    s = Settings(_env_file=None, NEXUS_ENV="production", NEXUS_DEV_MODE="true")
+    s = Settings(_env_file=None, AEGIS_ENV="production", AEGIS_DEV_MODE="true")
     assert s.dev_bypass_enabled is False  # jamais em produção
 
 
 def test_dev_bypass_only_in_dev():
-    s = Settings(_env_file=None, NEXUS_ENV="development", NEXUS_DEV_MODE="true")
+    s = Settings(_env_file=None, AEGIS_ENV="development", AEGIS_DEV_MODE="true")
     assert s.dev_bypass_enabled is True
 
 
 def test_fail_closed_effective_in_production():
-    s = Settings(_env_file=None, NEXUS_ENV="production")
+    s = Settings(_env_file=None, AEGIS_ENV="production")
     assert s.ratelimit_fail_closed_effective is True
-    d = Settings(_env_file=None, NEXUS_ENV="development")
+    d = Settings(_env_file=None, AEGIS_ENV="development")
     assert d.ratelimit_fail_closed_effective is False
 
 

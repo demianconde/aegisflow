@@ -1,4 +1,4 @@
-"""Testes do roteador nexus-auto (local-first + escalonamento)."""
+"""Testes do roteador aegis-auto (local-first + escalonamento)."""
 
 from __future__ import annotations
 

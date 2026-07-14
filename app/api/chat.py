@@ -1,7 +1,7 @@
 """Endpoint de proxy de LLM (plano de dados, auth por x-api-key).
 
 Resolve a credencial BYOK do tenant, aplica limites da chave virtual, opcionalmente
-roteia por complexidade (`model: "nexus-auto"`) com política local-first + escalonamento,
+roteia por complexidade (`model: "aegis-auto"`) com política local-first + escalonamento,
 suporta cadeia de fallback, chama o provedor real, faz streaming SSE e grava o uso.
 """
 
@@ -22,7 +22,7 @@ from app.cache import CachedResponse, get_cache
 from app.cache.semantic import prompt_text
 from app.config import get_settings
 from app.crypto import decrypt_secret
-from app.db.models import NexusApiKey, ProviderKey
+from app.db.models import AegisApiKey, ProviderKey
 from app.db.session import get_db
 from app.metrics import inc
 from app.providers.service import (
@@ -96,7 +96,7 @@ def _fallback_attempts(keys: list[ProviderKey], fallback: list[str] | None) -> l
 async def _plan(db: AsyncSession, tenant_id: uuid.UUID, body: ChatCompletionRequest) -> Plan:
     keys = await _tenant_provider_keys(db, tenant_id)
 
-    if body.model == "nexus-auto":
+    if body.model == "aegis-auto":
         if not keys:
             raise HTTPException(400, "Nenhuma credencial de provedor cadastrada para rotear.")
         complexity = estimate_complexity([m.model_dump() for m in body.messages])
@@ -132,7 +132,7 @@ async def _plan(db: AsyncSession, tenant_id: uuid.UUID, body: ChatCompletionRequ
     return Plan(attempts, None, None)
 
 
-def _apply_allowlist(attempts: list[Attempt], key: NexusApiKey) -> list[Attempt]:
+def _apply_allowlist(attempts: list[Attempt], key: AegisApiKey) -> list[Attempt]:
     if not key.allowed_models:
         return attempts
     allowed = {m.strip() for m in key.allowed_models.split(",") if m.strip()}
@@ -177,7 +177,7 @@ async def chat_completions(
     ctx: ApiContext = Depends(get_api_context),
     db: AsyncSession = Depends(get_db),
 ):
-    inc("nexus_requests_total")
+    inc("aegis_requests_total")
     settings = get_settings()
     tenant_id = ctx.tenant.id
     key = ctx.key
@@ -238,11 +238,11 @@ async def chat_completions(
             cost_usd=0.0, cost_saved_usd=saved, cache_hit=True, latency_ms=0,
             prompt_preview=_preview(cache_text), response_preview=_preview(cached.content),
         )
-        inc("nexus_cache_hits_total")
-        inc("nexus_cost_saved_usd_total", saved)
+        inc("aegis_cache_hits_total")
+        inc("aegis_cost_saved_usd_total", saved)
         ch = {
-            "x-nexus-request-id": request_id, "x-nexus-model": cached.model,
-            "x-nexus-provider": cached.provider, "x-nexus-cache": "hit",
+            "x-aegis-request-id": request_id, "x-aegis-model": cached.model,
+            "x-aegis-provider": cached.provider, "x-aegis-cache": "hit",
         }
         if body.stream:
             async def cached_stream():
@@ -267,13 +267,13 @@ async def chat_completions(
 
     def headers_for(att: Attempt, escalated: bool) -> dict:
         h = {
-            "x-nexus-request-id": request_id, "x-nexus-model": att.model,
-            "x-nexus-provider": att.provider, "x-nexus-cache": "miss",
+            "x-aegis-request-id": request_id, "x-aegis-model": att.model,
+            "x-aegis-provider": att.provider, "x-aegis-cache": "miss",
         }
         if plan.routed:
-            h["x-nexus-complexity"] = plan.complexity or ""
-            h["x-nexus-routed"] = "escalated" if escalated else "auto"
-            h["x-nexus-local"] = "true" if att.is_local else "false"
+            h["x-aegis-complexity"] = plan.complexity or ""
+            h["x-aegis-routed"] = "escalated" if escalated else "auto"
+            h["x-aegis-local"] = "true" if att.is_local else "false"
         return h
 
     # ---------- streaming ----------
@@ -301,15 +301,15 @@ async def chat_completions(
                     break
                 except (ProviderError, httpx.HTTPError, ValueError) as exc:
                     if sent or idx == len(plan.attempts) - 1:
-                        inc("nexus_errors_total")
+                        inc("aegis_errors_total")
                         yield openai_error_chunk(f"{type(exc).__name__}: {str(exc)[:300]}")
                         break
                     continue
             model_used = usage.model or used.model
             content = "".join(collected)
-            inc("nexus_prompt_tokens_total", usage.prompt_tokens)
-            inc("nexus_completion_tokens_total", usage.completion_tokens)
-            inc("nexus_cost_saved_usd_total",
+            inc("aegis_prompt_tokens_total", usage.prompt_tokens)
+            inc("aegis_completion_tokens_total", usage.completion_tokens)
+            inc("aegis_cost_saved_usd_total",
                 _saved(baseline, model_used, usage.prompt_tokens, usage.completion_tokens))
             if ok:
                 await cache.store(str(tenant_id), cache_emb, CachedResponse(
@@ -341,9 +341,9 @@ async def chat_completions(
             continue
         model_used = result.usage.model or att.model
         pt, ct = result.usage.prompt_tokens, result.usage.completion_tokens
-        inc("nexus_prompt_tokens_total", pt)
-        inc("nexus_completion_tokens_total", ct)
-        inc("nexus_cost_saved_usd_total", _saved(baseline, model_used, pt, ct))
+        inc("aegis_prompt_tokens_total", pt)
+        inc("aegis_completion_tokens_total", ct)
+        inc("aegis_cost_saved_usd_total", _saved(baseline, model_used, pt, ct))
         await record_usage(
             tenant_id=tenant_id, api_key_id=key.id, request_id=request_id, provider=att.provider,
             model_requested=body.model, model_used=model_used, prompt_tokens=pt,
@@ -362,7 +362,7 @@ async def chat_completions(
             prompt_tokens=pt, completion_tokens=ct))
         return JSONResponse(payload, headers=headers_for(att, escalated=idx > 0))
 
-    inc("nexus_errors_total")
+    inc("aegis_errors_total")
     await record_usage(
         tenant_id=tenant_id, api_key_id=key.id, request_id=request_id,
         provider=plan.attempts[0].provider, model_requested=body.model,

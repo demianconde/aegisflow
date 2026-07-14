@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Painel · NexusGate</title>
+    <title>Painel · AegisFlow</title>
     <link rel="stylesheet" href="/static/styles.css?v=3">
     <script src="/static/vendor/supabase.js"></script>
 </head>
@@ -12,7 +12,7 @@
 
     <nav class="nav dash-nav glass">
         <div class="container nav-inner">
-            <div class="logo"><span class="mark">∞</span><span>NexusGate</span></div>
+            <div class="logo"><span class="mark">∞</span><span>AegisFlow</span></div>
             <div class="nav-cta">
                 <a href="/documentacao" class="link-quiet">Documentação</a>
                 <button class="btn btn-ghost btn-sm" id="logoutBtn">Sair</button>
@@ -48,7 +48,7 @@
 
             <div class="panel glass">
                 <div class="panel-head">
-                    <h2>Chaves de API do NexusGate</h2>
+                    <h2>Chaves de API do AegisFlow</h2>
                 </div>
                 <p class="muted" style="font-size:0.85rem;margin-bottom:1rem">Use estas chaves (<code>x-api-key</code>) nas suas aplicações para chamar o proxy.</p>
 
@@ -117,7 +117,7 @@
                     <div class="stat glass"><div class="k">Requisições</div><div class="v" id="uRequests">—</div></div>
                     <div class="stat glass"><div class="k">Tokens totais</div><div class="v" id="uTokens">—</div></div>
                     <div class="stat glass"><div class="k">Custo real (BYOK)</div><div class="v" id="uCost">—</div></div>
-                    <div class="stat glass"><div class="k">Economia por roteamento (nexus-auto)</div><div class="v" id="uSaved" style="color:var(--brand-300)">—</div></div>
+                    <div class="stat glass"><div class="k">Economia por roteamento (aegis-auto)</div><div class="v" id="uSaved" style="color:var(--brand-300)">—</div></div>
                 </div>
 
                 <div class="compare">
@@ -155,7 +155,7 @@
                             <button class="btn btn-ghost btn-sm" id="logRefresh">Atualizar</button>
                         </div>
                     </div>
-                    <p class="muted" style="font-size:0.8rem;margin-bottom:1rem">Prévias de prompt/resposta (redigidas para LGPD) só aparecem se <code>NEXUS_LOG_CONTENT=true</code> no servidor.</p>
+                    <p class="muted" style="font-size:0.8rem;margin-bottom:1rem">Prévias de prompt/resposta (redigidas para LGPD) só aparecem se <code>AEGIS_LOG_CONTENT=true</code> no servidor.</p>
                     <div id="logsContainer"><div class="empty">Carregando…</div></div>
                 </div>
             </div><!-- /tab-logs -->
@@ -164,8 +164,8 @@
                 <div class="panel glass">
                     <div class="panel-head"><h2>Playground</h2></div>
                     <div class="field">
-                        <label for="pgModel">Modelo <span class="muted">(use <code>nexus-auto</code> para roteamento automático)</span></label>
-                        <input class="input" id="pgModel" value="nexus-auto">
+                        <label for="pgModel">Modelo <span class="muted">(use <code>aegis-auto</code> para roteamento automático)</span></label>
+                        <input class="input" id="pgModel" value="aegis-auto">
                     </div>
                     <div class="field">
                         <label for="pgProvider">Provider <span class="muted">(opcional)</span></label>
@@ -604,7 +604,7 @@
                     const blob = await res.blob();
                     const url = URL.createObjectURL(blob);
                     const a = document.createElement('a');
-                    a.href = url; a.download = 'nexusgate-economia.csv';
+                    a.href = url; a.download = 'aegisflow-economia.csv';
                     document.body.appendChild(a); a.click(); a.remove();
                     URL.revokeObjectURL(url);
                 } catch (err) { showMsg(err.message, 'error'); }
@@ -647,7 +647,7 @@
                 clearMsg(); btn.disabled = true; out.innerHTML = '<span class="muted">Executando…</span>';
                 try {
                     const payload = {
-                        model: document.getElementById('pgModel').value.trim() || 'nexus-auto',
+                        model: document.getElementById('pgModel').value.trim() || 'aegis-auto',
                         provider: document.getElementById('pgProvider').value.trim() || null,
                         messages: [{ role: 'user', content: document.getElementById('pgPrompt').value }],
                     };
@@ -682,7 +682,7 @@
 
             logoutBtn.addEventListener('click', async () => {
                 try { if (client) await client.auth.signOut(); } catch (e) { /* ignore */ }
-                localStorage.removeItem('nexus_token');
+                localStorage.removeItem('aegis_token');
                 goLogin();
             });
 
@@ -690,7 +690,7 @@
                 let cfg;
                 try { cfg = await (await fetch('/public-config')).json(); } catch (e) { cfg = { configured: false }; }
 
-                token = localStorage.getItem('nexus_token');
+                token = localStorage.getItem('aegis_token');
                 const isDev = cfg.dev_mode && token === 'dev-local-access';
 
                 // Modo dev: não toca no Supabase (funciona 100% offline).
@@ -700,7 +700,7 @@
                         const { data } = await client.auth.getSession();  // captura sessão de link mágico
                         if (data.session) {
                             token = data.session.access_token;
-                            localStorage.setItem('nexus_token', token);
+                            localStorage.setItem('aegis_token', token);
                         }
                     } catch (e) { /* offline / sem sessão — segue com token local se houver */ }
                 }

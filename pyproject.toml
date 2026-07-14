@@ -1,7 +1,7 @@
 [project]
-name = "nexusgate"
+name = "aegisflow"
 version = "0.1.0"
-description = "NexusGate — LLM Gateway & Multi-Agent Proxy BYOK (SaaS)"
+description = "AegisFlow — LLM Gateway & Multi-Agent Proxy BYOK (SaaS)"
 requires-python = ">=3.11"
 
 [tool.ruff]

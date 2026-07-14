@@ -43,7 +43,7 @@ def is_public_endpoint(base_url: str) -> bool:
 
 _SSRF_MSG = (
     "base_url aponta para rede privada/local, bloqueada por segurança (SSRF). "
-    "Em self-host, defina NEXUS_ALLOW_PRIVATE_ENDPOINTS=true."
+    "Em self-host, defina AEGIS_ALLOW_PRIVATE_ENDPOINTS=true."
 )
 
 

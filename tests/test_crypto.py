@@ -13,7 +13,7 @@ from app.config import get_settings
 @pytest.fixture(autouse=True)
 def _master_key(monkeypatch):
     key = base64.b64encode(os.urandom(32)).decode()
-    monkeypatch.setenv("NEXUS_MASTER_KEY", key)
+    monkeypatch.setenv("AEGIS_MASTER_KEY", key)
     get_settings.cache_clear()
     yield
     get_settings.cache_clear()
@@ -46,7 +46,7 @@ def test_unique_ciphertext_per_call():
 
 def test_is_configured_false_with_invalid_key(monkeypatch):
     # Chave com tamanho errado (16 bytes) → inválida (env var tem precedência sobre .env).
-    monkeypatch.setenv("NEXUS_MASTER_KEY", base64.b64encode(os.urandom(16)).decode())
+    monkeypatch.setenv("AEGIS_MASTER_KEY", base64.b64encode(os.urandom(16)).decode())
     get_settings.cache_clear()
     from app.crypto import is_configured
 

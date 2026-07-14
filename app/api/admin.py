@@ -10,7 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api_key import generate_api_key
 from app.auth.supabase import get_current_user
-from app.db.models import NexusApiKey, Tenant, User
+from app.db.models import AegisApiKey, Tenant, User
 from app.db.session import get_db
 
 from .schemas import (
@@ -64,9 +64,9 @@ async def list_keys(
     db: AsyncSession = Depends(get_db),
 ) -> list[ApiKeyInfo]:
     result = await db.execute(
-        select(NexusApiKey)
-        .where(NexusApiKey.tenant_id == user.tenant_id)
-        .order_by(NexusApiKey.created_at.desc())
+        select(AegisApiKey)
+        .where(AegisApiKey.tenant_id == user.tenant_id)
+        .order_by(AegisApiKey.created_at.desc())
     )
     return [ApiKeyInfo.model_validate(k) for k in result.scalars().all()]
 
@@ -78,7 +78,7 @@ async def create_key(
     db: AsyncSession = Depends(get_db),
 ) -> ApiKeyCreated:
     full_key, prefix, key_hash = generate_api_key()
-    record = NexusApiKey(
+    record = AegisApiKey(
         tenant_id=user.tenant_id, key_prefix=prefix, key_hash=key_hash, name=body.name
     )
     db.add(record)
@@ -104,7 +104,7 @@ async def update_key_limits(
     db: AsyncSession = Depends(get_db),
 ) -> ApiKeyInfo:
     """Define limites da chave virtual: orçamento mensal, rpm e allowlist de modelos."""
-    record = await db.get(NexusApiKey, key_id)
+    record = await db.get(AegisApiKey, key_id)
     if record is None or record.tenant_id != user.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chave não encontrada")
     record.monthly_budget_usd = body.monthly_budget_usd
@@ -121,7 +121,7 @@ async def revoke_key(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> Response:
-    record = await db.get(NexusApiKey, key_id)
+    record = await db.get(AegisApiKey, key_id)
     if record is None or record.tenant_id != user.tenant_id:
         raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Chave não encontrada")
     if record.revoked_at is None:

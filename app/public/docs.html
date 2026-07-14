@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NexusGate · Documentação</title>
+    <title>AegisFlow · Documentação</title>
     <link rel="stylesheet" href="/static/styles.css?v=3">
 </head>
 <body>
@@ -11,7 +11,7 @@
 
     <nav class="nav glass">
         <div class="container nav-inner">
-            <a href="/" class="logo"><span class="mark">∞</span><span>NexusGate</span></a>
+            <a href="/" class="logo"><span class="mark">∞</span><span>AegisFlow</span></a>
             <div class="nav-links">
                 <a href="/#recursos">Recursos</a>
                 <a href="/#interesse">Tenho interesse</a>
@@ -29,7 +29,7 @@
             <a href="#quickstart">Quickstart</a>
             <div class="grp">Serviços</div>
             <a href="#chat">Chat Completions</a>
-            <a href="#roteamento">Roteamento (nexus-auto)</a>
+            <a href="#roteamento">Roteamento (aegis-auto)</a>
             <a href="#fallback">Fallback</a>
             <a href="#cache">Cache semântico</a>
             <a href="#models">Modelos</a>
@@ -47,22 +47,22 @@
         <!-- Conteúdo -->
         <main class="doc-content">
             <h1>Documentação</h1>
-            <p class="doc-lead">O NexusGate é um <strong>gateway de LLM</strong> compatível com o formato da API da OpenAI. Troque a <code>base_url</code> da sua aplicação e use uma chave do NexusGate — nós roteamos para o modelo mais barato que resolve, reaproveitamos respostas com cache e usamos a sua própria chave do provedor (BYOK).</p>
+            <p class="doc-lead">O AegisFlow é um <strong>gateway de LLM</strong> compatível com o formato da API da OpenAI. Troque a <code>base_url</code> da sua aplicação e use uma chave do AegisFlow — nós roteamos para o modelo mais barato que resolve, reaproveitamos respostas com cache e usamos a sua própria chave do provedor (BYOK).</p>
 
             <section class="doc-card glass" id="visao">
                 <h2><span class="num">1</span> Visão geral</h2>
                 <p>Existem dois planos de acesso, com credenciais diferentes:</p>
                 <ul>
-                    <li><strong>Plano de dados</strong> (suas aplicações): autentica com uma <strong>chave do NexusGate</strong> no header <code>x-api-key</code>. É por aqui que passam as chamadas de IA.</li>
+                    <li><strong>Plano de dados</strong> (suas aplicações): autentica com uma <strong>chave do AegisFlow</strong> no header <code>x-api-key</code>. É por aqui que passam as chamadas de IA.</li>
                     <li><strong>Painel</strong> (você/seu time): login via Supabase para gerenciar chaves, credenciais BYOK, ver uso e cobrança.</li>
                 </ul>
-                <div class="doc-note">Base URL: <code>https://api.nexusgate.com.br/v1</code> (produção) — em dev, <code>http://localhost:8000/v1</code>.</div>
+                <div class="doc-note">Base URL: <code>https://api.aegisflow.com.br/v1</code> (produção) — em dev, <code>http://localhost:8000/v1</code>.</div>
             </section>
 
             <section class="doc-card glass" id="auth">
                 <h2><span class="num">2</span> Autenticação</h2>
-                <p>Toda chamada ao proxy exige o header <code>x-api-key</code> com uma chave gerada no painel (formato <code>nxg_....</code>). A chave em claro é mostrada <strong>uma única vez</strong>, na criação.</p>
-                <div class="doc-pre"><code>x-api-key: nxg_a1b2c3d4.seu-segredo-aqui</code></div>
+                <p>Toda chamada ao proxy exige o header <code>x-api-key</code> com uma chave gerada no painel (formato <code>agf_....</code>). A chave em claro é mostrada <strong>uma única vez</strong>, na criação.</p>
+                <div class="doc-pre"><code>x-api-key: agf_a1b2c3d4.seu-segredo-aqui</code></div>
                 <p>Sem a chave → <code>401</code>. Chave inválida/revogada → <code>403</code>.</p>
             </section>
 
@@ -72,12 +72,12 @@
                 <div class="doc-pre"><code>from openai import OpenAI
 
 client = OpenAI(
-    base_url="https://api.nexusgate.com.br/v1",
-    api_key="nxg_a1b2c3d4.•••••",   # sua chave do NexusGate
+    base_url="https://api.aegisflow.com.br/v1",
+    api_key="agf_a1b2c3d4.•••••",   # sua chave do AegisFlow
 )
 
 resp = client.chat.completions.create(
-    model="nexus-auto",              # roteamento automático por complexidade
+    model="aegis-auto",              # roteamento automático por complexidade
     messages=[{"role": "user", "content": "Escreva testes para esta função"}],
 )
 print(resp.choices[0].message.content)</code></div>
@@ -88,8 +88,8 @@ print(resp.choices[0].message.content)</code></div>
                 <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/chat/completions</div>
                 <p>Proxy compatível com o formato OpenAI. Resolve a credencial BYOK do tenant, chama o provedor real (qualquer LLM, na nuvem ou local) e devolve a resposta. Suporta <strong>streaming (SSE)</strong> com <code>"stream": true</code>.</p>
                 <p><strong>Campos:</strong> <code>model</code>, <code>messages</code>, <code>provider</code> (opcional), <code>stream</code>, <code>max_tokens</code>, <code>temperature</code>, <code>fallback</code>.</p>
-                <div class="doc-pre"><code>curl https://api.nexusgate.com.br/v1/chat/completions \
-  -H "x-api-key: nxg_..." -H "Content-Type: application/json" \
+                <div class="doc-pre"><code>curl https://api.aegisflow.com.br/v1/chat/completions \
+  -H "x-api-key: agf_..." -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-4o-mini",
     "messages": [{"role": "user", "content": "Olá!"}]
@@ -97,14 +97,14 @@ print(resp.choices[0].message.content)</code></div>
             </section>
 
             <section class="doc-card glass" id="roteamento">
-                <h2><span class="num">5</span> Roteamento — <code>nexus-auto</code></h2>
-                <p>Ao enviar <code>"model": "nexus-auto"</code>, o gateway classifica a complexidade e escolhe a rota mais econômica, com política <strong>local-first + escalonamento</strong>:</p>
+                <h2><span class="num">5</span> Roteamento — <code>aegis-auto</code></h2>
+                <p>Ao enviar <code>"model": "aegis-auto"</code>, o gateway classifica a complexidade e escolhe a rota mais econômica, com política <strong>local-first + escalonamento</strong>:</p>
                 <ul>
                     <li><strong>Local é o primeiro recurso</strong> (gratuito), para tarefas simples e complexas.</li>
                     <li>Se o local <strong>não der conta</strong> (falha/indisponível), <strong>escala</strong> para um modelo pago — o premium no caso de tarefa complexa.</li>
                     <li>Sem provedor local, escolhe direto o hospedado mais adequado ao tier.</li>
                 </ul>
-                <p>A decisão vem nos <a href="#headers">headers</a> (<code>x-nexus-model</code>, <code>x-nexus-complexity</code>, <code>x-nexus-routed</code>) e a economia entra em <a href="#uso">Uso &amp; Economia</a>.</p>
+                <p>A decisão vem nos <a href="#headers">headers</a> (<code>x-aegis-model</code>, <code>x-aegis-complexity</code>, <code>x-aegis-routed</code>) e a economia entra em <a href="#uso">Uso &amp; Economia</a>.</p>
             </section>
 
             <section class="doc-card glass" id="fallback">
@@ -120,7 +120,7 @@ print(resp.choices[0].message.content)</code></div>
 
             <section class="doc-card glass" id="cache">
                 <h2><span class="num">7</span> Cache semântico</h2>
-                <p>Requisições semanticamente parecidas não pagam duas vezes. Comparamos o prompt (via embeddings) com respostas anteriores do tenant; se a similaridade passar do limite, servimos do cache em milissegundos — sem chamar o provedor. O header <code>x-nexus-cache</code> indica <code>hit</code> ou <code>miss</code>.</p>
+                <p>Requisições semanticamente parecidas não pagam duas vezes. Comparamos o prompt (via embeddings) com respostas anteriores do tenant; se a similaridade passar do limite, servimos do cache em milissegundos — sem chamar o provedor. O header <code>x-aegis-cache</code> indica <code>hit</code> ou <code>miss</code>.</p>
                 <div class="doc-note">Configurável por tenant: limite de similaridade e TTL. Prompts diferentes não colidem.</div>
             </section>
 
@@ -134,8 +134,8 @@ print(resp.choices[0].message.content)</code></div>
                 <h2><span class="num">9</span> Embeddings <span class="doc-tag">plano de dados</span></h2>
                 <div class="doc-endpoint"><span class="doc-method post">POST</span> /v1/embeddings</div>
                 <p>Gera embeddings via BYOK (OpenAI-compatível ou Ollama). Retorna no formato OpenAI.</p>
-                <div class="doc-pre"><code>curl https://api.nexusgate.com.br/v1/embeddings \
-  -H "x-api-key: nxg_..." -H "Content-Type: application/json" \
+                <div class="doc-pre"><code>curl https://api.aegisflow.com.br/v1/embeddings \
+  -H "x-api-key: agf_..." -H "Content-Type: application/json" \
   -d '{"provider": "openai", "model": "text-embedding-3-small", "input": "olá"}'</code></div>
             </section>
 
@@ -170,10 +170,10 @@ print(resp.choices[0].message.content)</code></div>
             <section class="doc-card glass" id="headers">
                 <h2><span class="num">14</span> Headers de resposta</h2>
                 <ul>
-                    <li><code>x-nexus-request-id</code> — id da requisição (rastreio nos logs).</li>
-                    <li><code>x-nexus-model</code> / <code>x-nexus-provider</code> — modelo e provedor usados.</li>
-                    <li><code>x-nexus-cache</code> — <code>hit</code> ou <code>miss</code>.</li>
-                    <li><code>x-nexus-complexity</code> / <code>x-nexus-routed</code> / <code>x-nexus-local</code> — decisão do <code>nexus-auto</code>.</li>
+                    <li><code>x-aegis-request-id</code> — id da requisição (rastreio nos logs).</li>
+                    <li><code>x-aegis-model</code> / <code>x-aegis-provider</code> — modelo e provedor usados.</li>
+                    <li><code>x-aegis-cache</code> — <code>hit</code> ou <code>miss</code>.</li>
+                    <li><code>x-aegis-complexity</code> / <code>x-aegis-routed</code> / <code>x-aegis-local</code> — decisão do <code>aegis-auto</code>.</li>
                 </ul>
             </section>
 

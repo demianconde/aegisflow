@@ -1,4 +1,4 @@
-"""Ponto de entrada da API do NexusGate (FastAPI app factory)."""
+"""Ponto de entrada da API do AegisFlow (FastAPI app factory)."""
 
 from __future__ import annotations
 
@@ -38,12 +38,12 @@ PUBLIC_DIR = Path(__file__).parent / "public"
 async def lifespan(app: FastAPI):
     settings = get_settings()
     configure_logging(level=settings.log_level, json_output=settings.log_json)
-    log = get_logger("nexusgate")
+    log = get_logger("aegisflow")
     log.info("startup", version=__version__, env=settings.env)
     if settings.dev_bypass_enabled:
         log.warning(
             "DEV_BYPASS_ATIVO: login pode ser contornado. NUNCA use em produção "
-            "(defina NEXUS_ENV=production e NEXUS_DEV_MODE=false)."
+            "(defina AEGIS_ENV=production e AEGIS_DEV_MODE=false)."
         )
     yield
     log.info("shutdown")
@@ -53,7 +53,7 @@ def create_app() -> FastAPI:
     settings = get_settings()
     # Swagger/ReDoc/OpenAPI desativados — a documentação oficial é /documentacao.
     app = FastAPI(
-        title="NexusGate",
+        title="AegisFlow",
         version=__version__,
         description="LLM Gateway & Multi-Agent Proxy BYOK",
         lifespan=lifespan,
@@ -62,7 +62,7 @@ def create_app() -> FastAPI:
         openapi_url=None,
     )
 
-    # Em produção, use uma allowlist (NEXUS_CORS_ORIGINS). Em dev, libera tudo.
+    # Em produção, use uma allowlist (AEGIS_CORS_ORIGINS). Em dev, libera tudo.
     cors_origins = settings.cors_origin_list if settings.is_production else ["*"]
     app.add_middleware(
         CORSMiddleware,
@@ -111,14 +111,14 @@ def create_app() -> FastAPI:
         return _html("dashboard.html")
 
     @app.get("/documentacao", include_in_schema=False)
-    @app.get("/docs-nexus", include_in_schema=False)
+    @app.get("/docs-aegis", include_in_schema=False)
     async def docs_page() -> FileResponse:
         return _html("docs.html")
 
     # Console do dono — rota "secreta" (não linkada em lugar nenhum). Aceita a
     # versão acentuada e a ASCII (a acentuada é percent-encoded pelo browser).
-    @app.get("/gestaonexus", include_in_schema=False)
-    @app.get("/gestãonexus", include_in_schema=False)
+    @app.get("/gestaoaegis", include_in_schema=False)
+    @app.get("/gestãoaegis", include_in_schema=False)
     async def owner_console() -> FileResponse:
         return _html("owner.html")
 

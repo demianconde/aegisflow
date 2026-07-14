@@ -1,4 +1,4 @@
-"""Roteador de custo (nexus-auto) — local-first com escalonamento.
+"""Roteador de custo (aegis-auto) — local-first com escalonamento.
 
 Política:
 - **Local é o primeiro recurso**, para tarefas simples E complexas (é gratuito).

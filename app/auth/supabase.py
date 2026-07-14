@@ -19,7 +19,7 @@ from .tokens import extract_bearer
 
 # Token sentinela do modo dev (só aceito quando dev_bypass_enabled é True).
 DEV_ACCESS_TOKEN = "dev-local-access"
-_DEV_SUPABASE_USER = {"id": "dev-local-user", "email": "dev@nexusgate.local"}
+_DEV_SUPABASE_USER = {"id": "dev-local-user", "email": "dev@aegisflow.local"}
 
 
 async def verify_supabase_token(token: str) -> dict:
@@ -105,7 +105,7 @@ async def require_owner(authorization: str | None = Header(default=None)) -> dic
 
     # Bypass dev: só fora de produção e se algum owner estiver configurado.
     if settings.dev_bypass_enabled and token == DEV_ACCESS_TOKEN:
-        return {"email": "dev-owner@nexusgate.local", "id": "dev-owner"}
+        return {"email": "dev-owner@aegisflow.local", "id": "dev-owner"}
 
     user = await verify_supabase_token(token)
     email = (user.get("email") or "").lower()
@@ -113,6 +113,6 @@ async def require_owner(authorization: str | None = Header(default=None)) -> dic
     if not owners or email not in owners:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Acesso restrito ao dono do NexusGate.",
+            detail="Acesso restrito ao dono do AegisFlow.",
         )
     return user

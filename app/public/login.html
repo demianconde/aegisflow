@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Entrar · NexusGate</title>
+    <title>Entrar · AegisFlow</title>
     <link rel="stylesheet" href="/static/styles.css?v=3">
     <script src="/static/vendor/supabase.js"></script>
 </head>
@@ -13,7 +13,7 @@
 
     <div class="auth-wrap">
         <div class="auth-card glass">
-            <div class="auth-logo"><span class="mark">∞</span><span>NexusGate</span></div>
+            <div class="auth-logo"><span class="mark">∞</span><span>AegisFlow</span></div>
             <p class="auth-sub" id="subtitle">Entre para acessar seu painel</p>
 
             <div class="msg" id="msg"></div>
@@ -83,7 +83,7 @@
                 if (cfg.dev_mode) {
                     document.getElementById('devWrap').style.display = 'block';
                     document.getElementById('devBtn').addEventListener('click', () => {
-                        localStorage.setItem('nexus_token', 'dev-local-access');
+                        localStorage.setItem('aegis_token', 'dev-local-access');
                         window.location.href = '/dashboard';
                     });
                 }
@@ -95,7 +95,7 @@
                     return;
                 }
                 // Se já entrou em modo dev antes, não precisa do Supabase (offline-safe).
-                if (cfg.dev_token && localStorage.getItem('nexus_token') === cfg.dev_token) {
+                if (cfg.dev_token && localStorage.getItem('aegis_token') === cfg.dev_token) {
                     window.location.href = '/dashboard';
                     return;
                 }
@@ -103,7 +103,7 @@
                     client = window.supabase.createClient(cfg.supabase_url, cfg.supabase_anon_key);
                     const { data } = await client.auth.getSession();  // já logado? vai direto
                     if (data.session) {
-                        localStorage.setItem('nexus_token', data.session.access_token);
+                        localStorage.setItem('aegis_token', data.session.access_token);
                         window.location.href = '/dashboard';
                     }
                 } catch (e) { /* offline / sem sessão — usa o botão de dev ou login por e-mail */ }
@@ -139,7 +139,7 @@
                         const { data, error } = await client.auth.signUp({ email, password });
                         if (error) throw error;
                         if (data.session) {
-                            localStorage.setItem('nexus_token', data.session.access_token);
+                            localStorage.setItem('aegis_token', data.session.access_token);
                             window.location.href = '/dashboard';
                         } else {
                             showMsg('Conta criada! Confirme seu e-mail para ativar o acesso.', 'ok');
@@ -147,7 +147,7 @@
                     } else {
                         const { data, error } = await client.auth.signInWithPassword({ email, password });
                         if (error) throw error;
-                        localStorage.setItem('nexus_token', data.session.access_token);
+                        localStorage.setItem('aegis_token', data.session.access_token);
                         window.location.href = '/dashboard';
                     }
                 } catch (err) {

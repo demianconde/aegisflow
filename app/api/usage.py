@@ -61,7 +61,7 @@ async def export_usage(
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",
-        headers={"Content-Disposition": "attachment; filename=nexusgate-economia.csv"},
+        headers={"Content-Disposition": "attachment; filename=aegisflow-economia.csv"},
     )
 
 
@@ -74,7 +74,7 @@ async def get_logs(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> dict:
-    """Logs de requisição (observabilidade). Prévias só aparecem se NEXUS_LOG_CONTENT=true."""
+    """Logs de requisição (observabilidade). Prévias só aparecem se AEGIS_LOG_CONTENT=true."""
     logs = await recent_logs(
         db, user.tenant_id, limit=limit, offset=offset, model=model, status=status
     )

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>NexusGate | Gateway de IA para empresas brasileiras — BYOK sem markup, LGPD</title>
+    <title>AegisFlow | Gateway de IA para empresas brasileiras — BYOK sem markup, LGPD</title>
     <meta name="description" content="Gateway de LLM feito para o Brasil: use suas próprias chaves (BYOK) sem markup sobre tokens, roteie para o modelo mais barato que resolve, cacheie o repetido e comprove a economia. LGPD, dados no Brasil, Pix e boleto.">
     <link rel="stylesheet" href="/static/styles.css?v=3">
 </head>
@@ -13,7 +13,7 @@
     <!-- Nav -->
     <nav class="nav glass">
         <div class="container nav-inner">
-            <div class="logo"><span class="mark">∞</span><span>NexusGate</span></div>
+            <div class="logo"><span class="mark">∞</span><span>AegisFlow</span></div>
             <div class="nav-links">
                 <a href="#como-funciona">Como Funciona</a>
                 <a href="#recursos">Recursos</a>
@@ -58,7 +58,7 @@
                     <div class="hub-core">
                         <span class="spin">⇄</span>
                         <div>
-                            <div class="t">Nexus Router</div>
+                            <div class="t">Aegis Router</div>
                             <div class="s">analisando complexidade<br>BYOK em memória</div>
                         </div>
                     </div>
@@ -110,7 +110,7 @@
         <div class="container">
             <div class="section-head">
                 <h2>Feito para o <span class="brand">Brasil</span></h2>
-                <p>A maioria dos gateways é gringa: só em inglês, dólar, cartão internacional e sem preocupação com a LGPD. O NexusGate nasceu aqui.</p>
+                <p>A maioria dos gateways é gringa: só em inglês, dólar, cartão internacional e sem preocupação com a LGPD. O AegisFlow nasceu aqui.</p>
             </div>
             <div class="grid grid-brasil">
                 <div class="mini glass"><div class="icon">🛡️</div><h4>LGPD &amp; dados no Brasil</h4><p>Residência de dados nacional e processos aderentes à LGPD.</p></div>
@@ -126,10 +126,10 @@
         <div class="container how">
             <div>
                 <h2>Integração em <span class="brand">1 minuto</span></h2>
-                <p class="lead">Você não muda sua stack. O NexusGate é compatível com o formato da API da OpenAI: troque a <code>base_url</code> e use a sua chave do NexusGate. O resto continua igual.</p>
+                <p class="lead">Você não muda sua stack. O AegisFlow é compatível com o formato da API da OpenAI: troque a <code>base_url</code> e use a sua chave do AegisFlow. O resto continua igual.</p>
                 <div class="steps">
                     <div class="step"><div class="num">1</div><div><h4>Cadastre suas chaves BYOK</h4><p>Adicione suas API keys (OpenAI, Anthropic, Qwen) no cofre cifrado. Login do painel via Supabase.</p></div></div>
-                    <div class="step"><div class="num">2</div><div><h4>Aponte a base URL</h4><p>Use <code>https://api.nexusgate.com.br/v1</code> e sua chave <code>nxg_...</code> no header.</p></div></div>
+                    <div class="step"><div class="num">2</div><div><h4>Aponte a base URL</h4><p>Use <code>https://api.aegisflow.com.br/v1</code> e sua chave <code>agf_...</code> no header.</p></div></div>
                     <div class="step"><div class="num">3</div><div><h4>Roteamento + cache automáticos</h4><p>Interceptamos, escolhemos o modelo certo, servimos do cache quando dá e devolvemos em streaming.</p></div></div>
                 </div>
             </div>
@@ -139,12 +139,12 @@
                     <pre><code><span class="tok-kw">from</span> openai <span class="tok-kw">import</span> OpenAI
 
 client = OpenAI(
-    base_url=<span class="tok-str">"https://api.nexusgate.com.br/v1"</span>,
-    api_key=<span class="tok-str">"nxg_a1b2c3d4.•••••••"</span>,  <span class="tok-com"># chave do NexusGate</span>
+    base_url=<span class="tok-str">"https://api.aegisflow.com.br/v1"</span>,
+    api_key=<span class="tok-str">"agf_a1b2c3d4.•••••••"</span>,  <span class="tok-com"># chave do AegisFlow</span>
 )
 
 resp = client.chat.completions.create(
-    model=<span class="tok-str">"nexus-auto"</span>,      <span class="tok-com"># roteamento automático</span>
+    model=<span class="tok-str">"aegis-auto"</span>,      <span class="tok-com"># roteamento automático</span>
     messages=[{<span class="tok-key">"role"</span>: <span class="tok-str">"user"</span>,
                <span class="tok-key">"content"</span>: <span class="tok-str">"Escreva testes para X"</span>}],
     stream=<span class="tok-kw">True</span>,
@@ -172,7 +172,7 @@ resp = client.chat.completions.create(
                 </div>
                 <div class="sim-results">
                     <div class="res">
-                        <h4>Custo projetado com NexusGate</h4>
+                        <h4>Custo projetado com AegisFlow</h4>
                         <div><span class="big">R$ <span id="projectedCost">1.549</span></span> <span class="text-mono-mut">/mês nas APIs</span></div>
                         <ul>
                             <li>~60% roteado para tier barato</li>
@@ -262,7 +262,7 @@ resp = client.chat.completions.create(
     <footer class="footer">
         <div class="container">
             <div class="footer-top">
-                <div class="logo"><span class="mark">∞</span><span>NexusGate</span></div>
+                <div class="logo"><span class="mark">∞</span><span>AegisFlow</span></div>
                 <div class="footer-links">
                     <a href="#">Termos</a>
                     <a href="#">Privacidade &amp; LGPD</a>
@@ -270,7 +270,7 @@ resp = client.chat.completions.create(
                     <a href="#">Contato</a>
                 </div>
             </div>
-            <div class="copy">© 2026 NexusGate. Chaves BYOK cifradas em repouso — nunca armazenadas em texto plano. Zero markup sobre tokens.</div>
+            <div class="copy">© 2026 AegisFlow. Chaves BYOK cifradas em repouso — nunca armazenadas em texto plano. Zero markup sobre tokens.</div>
         </div>
     </footer>
 

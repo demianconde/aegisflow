@@ -1,15 +1,15 @@
-# NexusGate
+# AegisFlow
 
 **LLM Gateway & Multi-Agent Proxy BYOK** — SaaS gerenciado que fica entre as aplicações dos clientes e os provedores de IA (OpenAI, Anthropic, Qwen), agregando: proxy BYOK, roteamento por custo, cache semântico e billing multi-tenant.
 
-> Reescrita do protótipo `nexusGate` como produto real. Stack oficial: **Python 3.11 + FastAPI**. Entrega: **SaaS gerenciado**. Auth do painel: **Supabase**.
+> Reescrita do protótipo `aegisGate` como produto real. Stack oficial: **Python 3.11 + FastAPI**. Entrega: **SaaS gerenciado**. Auth do painel: **Supabase**.
 
 **Posicionamento:** gateway de IA **feito para o Brasil** — LGPD by design, dados no Brasil, PT-BR, preços em **BRL**, **Pix/boleto** e NF-e; **BYOK zero markup** sobre tokens; e **economia auditável** (relatório de ROI exportável). Paridade técnica com os concorrentes (fallback, observabilidade, cache, guardrails/PII) + diferenciação por região, compliance e transparência de preço.
 
 ## Arquitetura (resumo)
 
 ```
-[App do cliente] --(x-api-key)--> [NexusGate API / FastAPI]
+[App do cliente] --(x-api-key)--> [AegisFlow API / FastAPI]
    Supabase (auth do painel)          | resolve tenant + descriptografa chave BYOK
    [Router de custo] -> [Cache semântico (Redis)] -> [Provider] -> OpenAI/Anthropic/Qwen (streaming)
    [Postgres: tenants, api_keys, provider_keys, usage_logs, subscriptions]   [Stripe]   [Dashboard]
@@ -17,7 +17,7 @@
 
 Dois planos de autenticação distintos:
 - **Painel**: usuários logam via Supabase.
-- **Proxy de dados**: apps clientes autenticam com uma `x-api-key` do NexusGate (prefixo + hash).
+- **Proxy de dados**: apps clientes autenticam com uma `x-api-key` do AegisFlow (prefixo + hash).
 
 ## Requisitos
 - Docker + Docker Compose (recomendado), ou
@@ -58,10 +58,10 @@ make dev                # uvicorn com reload
 - `GET /v1/admin/providers` — provedores conhecidos (atalhos de base_url/format)
 - `GET/POST/DELETE /v1/admin/provider-keys` — CRUD das credenciais de provedor (cifradas at-rest). Campos: `provider`, `api_key` (opcional p/ locais), `base_url` (opcional), `format`, `label` (Nome da API), `default_model`.
 
-**Proxy / plano de dados (auth `x-api-key: nxg_....`):**
+**Proxy / plano de dados (auth `x-api-key: agf_....`):**
 - `GET /v1/whoami` — resolve o tenant a partir da chave (após rate limit).
 - `POST /v1/chat/completions` — proxy compatível com o formato OpenAI. Resolve a credencial BYOK do tenant, chama o provedor real (qualquer LLM/local), faz streaming SSE (`stream: true`) e grava `usage_logs`. O provedor é inferido do modelo ou informado em `provider`.
-  - **`model: "nexus-auto"`** ativa o roteamento: classifica a complexidade e aplica **local-first com escalonamento** — tenta o provedor **local** primeiro (gratuito) e, se falhar, **escala** para o hospedado (o **premium** em tarefas complexas). Headers de resposta expõem a decisão: `x-nexus-model`, `x-nexus-provider`, `x-nexus-complexity`, `x-nexus-routed` (`auto`/`escalated`), `x-nexus-local`.
+  - **`model: "aegis-auto"`** ativa o roteamento: classifica a complexidade e aplica **local-first com escalonamento** — tenta o provedor **local** primeiro (gratuito) e, se falhar, **escala** para o hospedado (o **premium** em tarefas complexas). Headers de resposta expõem a decisão: `x-aegis-model`, `x-aegis-provider`, `x-aegis-complexity`, `x-aegis-routed` (`auto`/`escalated`), `x-aegis-local`.
 
 > **Qualquer LLM, inclusive local:** cadastre uma credencial com `provider` conhecido (usa base_url padrão) ou `custom`/local com `base_url` própria (ex.: Ollama em `http://localhost:11434/v1`, sem API key). O painel detecta automaticamente se o endpoint é **local** e exibe o **modelo** configurado.
 >
@@ -91,11 +91,11 @@ Reinicie a API. Sem essas variáveis, `/login` mostra um aviso e o backend rejei
 Para validar o painel sem configurar o Supabase, ative o modo dev no `.env`:
 
 ```bash
-NEXUS_DEV_MODE=true
-DATABASE_URL=sqlite+aiosqlite:///./nexus_dev.db   # dev sem Postgres/Docker
+AEGIS_DEV_MODE=true
+DATABASE_URL=sqlite+aiosqlite:///./aegis_dev.db   # dev sem Postgres/Docker
 ```
 
-Rode `alembic upgrade head` e reinicie. Em `/login` aparece o botão **"Entrar sem login (dev)"**, que dá acesso a um tenant/usuário de desenvolvimento. O bypass usa o token sentinela `dev-local-access` (header `Authorization: Bearer dev-local-access`) e **só funciona quando `NEXUS_DEV_MODE=true` e `NEXUS_ENV` ≠ `production`** — em produção é ignorado.
+Rode `alembic upgrade head` e reinicie. Em `/login` aparece o botão **"Entrar sem login (dev)"**, que dá acesso a um tenant/usuário de desenvolvimento. O bypass usa o token sentinela `dev-local-access` (header `Authorization: Bearer dev-local-access`) e **só funciona quando `AEGIS_DEV_MODE=true` e `AEGIS_ENV` ≠ `production`** — em produção é ignorado.
 
 ## Estrutura
 ```
@@ -116,11 +116,11 @@ tests/                 # pytest
 - **F0 Fundação** ✅ scaffold, DB async + Alembic, /health, Docker, CI
 - **F1 Multi-tenant + Auth** ✅ Supabase real, provisionamento de tenants/users, CRUD de x-api-key, rate-limiting por tenant
 - **F2 Proxy BYOK real** ✅ envelope encryption (AES-256-GCM), CRUD de credenciais de provedor, `/v1/chat/completions` com streaming e gravação de uso. Suporta **qualquer LLM**: OpenAI-compatível (OpenAI, Qwen, Groq, DeepSeek, Together, OpenRouter, Gemini) e **locais** (Ollama, LM Studio, vLLM, LocalAI), além de Anthropic.
-- **F3 Roteamento + Economia** ✅ catálogo de preços (60+ LLMs), aba **Uso & Economia** (tokens/custo por LLM + comparação "se tudo rodasse no mesmo LLM") e **`nexus-auto`**: roteamento por complexidade **local-first com escalonamento** (local primeiro; se não der conta, escala para o pago), com `cost_saved` gravado
-- **F4 Cache semântico real** ✅ embeddings locais (Ollama) + store vetorial por tenant; serve prompts similares sem chamar o provedor (`x-nexus-cache: hit`) e contabiliza a economia
+- **F3 Roteamento + Economia** ✅ catálogo de preços (60+ LLMs), aba **Uso & Economia** (tokens/custo por LLM + comparação "se tudo rodasse no mesmo LLM") e **`aegis-auto`**: roteamento por complexidade **local-first com escalonamento** (local primeiro; se não der conta, escala para o pago), com `cost_saved` gravado
+- **F4 Cache semântico real** ✅ embeddings locais (Ollama) + store vetorial por tenant; serve prompts similares sem chamar o provedor (`x-aegis-cache: hit`) e contabiliza a economia
 - **F5 Billing** ✅ planos em BRL (quotas mensais + rpm por plano), aba **Plano & Cobrança**, checkout Stripe com **Pix/boleto/cartão** (opcional, atrás de chave) + modo dev
 - **F6 Hardening** ✅ redação de PII (LGPD) + guardrail para provedores hospedados, `/metrics` (Prometheus), retries em erros transitórios
-- **Captação de leads + console do dono** ✅ landing com **formulário de interesse** (pré-lançamento, sem login); `POST /v1/leads` público; **console do dono** oculto em `/gestaonexus` (login Google/Supabase, gate por `NEXUS_OWNER_EMAILS`) com MRR, assinaturas e gestão de leads
+- **Captação de leads + console do dono** ✅ landing com **formulário de interesse** (pré-lançamento, sem login); `POST /v1/leads` público; **console do dono** oculto em `/gestaoaegis` (login Google/Supabase, gate por `AEGIS_OWNER_EMAILS`) com MRR, assinaturas e gestão de leads
 - **Recursos avançados** ✅ observabilidade (logs de requisição + tracing, opt-in de prévias com redação PII); `/v1/models` e `/v1/embeddings` (OpenAI-compat, BYOK); **chaves virtuais** (orçamento mensal, rpm e allowlist de modelos por chave); **Playground** no painel; **fallback** configurável (`fallback: ["provider:model", ...]`)
 - **Deploy / GA** 🚧 ver [DEPLOY.md](DEPLOY.md) — cache vetorial em Redis, cloud KMS, testes de carga, Pix em produção
 

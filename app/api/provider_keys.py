@@ -78,7 +78,7 @@ async def create_provider_key(
     if not is_configured():
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Criptografia não configurada (defina NEXUS_MASTER_KEY).",
+            detail="Criptografia não configurada (defina AEGIS_MASTER_KEY).",
         )
     # Valida provedor/base_url/format.
     try:

@@ -1,13 +1,13 @@
 """Simulação: construir um sisteminha de finanças.
 
 Compara dois cenários de custo usando TOKENS REAIS (medidos em chamadas de verdade
-ao Gemini via NexusGate) e o catálogo de preços:
+ao Gemini via AegisFlow) e o catálogo de preços:
 
   A) 100% num Gemini premium (gemini-2.5-pro) para todas as tarefas.
-  B) Roteado pelo Nexus: cada tarefa vai para o modelo mais barato que dá conta,
+  B) Roteado pelo Aegis: cada tarefa vai para o modelo mais barato que dá conta,
      conforme a complexidade.
 
-Uso:  python scripts/sim_finance.py <NEXUS_API_KEY>
+Uso:  python scripts/sim_finance.py <AEGIS_API_KEY>
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ BASE = "http://127.0.0.1:8000"
 REAL_MODEL = "gemini-3.1-flash-lite"  # modelo que roda de fato p/ medir tokens reais
 PREMIUM = "gemini-2.5-pro"            # baseline "100% premium"
 
-# Tarefas de construção do sisteminha, com complexidade e o modelo que o Nexus escolheria.
+# Tarefas de construção do sisteminha, com complexidade e o modelo que o Aegis escolheria.
 TASKS = [
     ("baixa", "gemini-3.1-flash-lite",
      "Liste em bullets os campos de uma transação financeira pessoal."),
@@ -56,7 +56,7 @@ def call(key: str, prompt: str) -> tuple[int, int]:
 
 def main() -> None:
     key = sys.argv[1]
-    print(f"Medindo tokens reais em {REAL_MODEL} via NexusGate...\n")
+    print(f"Medindo tokens reais em {REAL_MODEL} via AegisFlow...\n")
     rows = []
     for complexity, routed_model, prompt in TASKS:
         pt, ct = call(key, prompt)
@@ -74,7 +74,7 @@ def main() -> None:
     print("\n" + "=" * 60)
     pin, pout = price_of(PREMIUM)
     print(f"Baseline  100% {PREMIUM} (${pin}/${pout} por Mtok): ${tot_premium:.6f}")
-    print(f"Roteado   pelo Nexus (por complexidade)          : ${tot_routed:.6f}")
+    print(f"Roteado   pelo Aegis (por complexidade)          : ${tot_routed:.6f}")
     print(f"ECONOMIA  : ${saved:.6f}  ({pct:.1f}% mais barato)")
     print("=" * 60)
     print("\n(tokens reais; custo dos modelos premium estimado pelo catálogo, "

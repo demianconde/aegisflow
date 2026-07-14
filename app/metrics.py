@@ -3,12 +3,12 @@
 from __future__ import annotations
 
 _counters: dict[str, float] = {
-    "nexus_requests_total": 0,
-    "nexus_cache_hits_total": 0,
-    "nexus_errors_total": 0,
-    "nexus_prompt_tokens_total": 0,
-    "nexus_completion_tokens_total": 0,
-    "nexus_cost_saved_usd_total": 0.0,
+    "aegis_requests_total": 0,
+    "aegis_cache_hits_total": 0,
+    "aegis_errors_total": 0,
+    "aegis_prompt_tokens_total": 0,
+    "aegis_completion_tokens_total": 0,
+    "aegis_cost_saved_usd_total": 0.0,
 }
 
 

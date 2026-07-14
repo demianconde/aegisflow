@@ -1,4 +1,4 @@
-"""Modelos ORM do NexusGate (modelo de dados multi-tenant).
+"""Modelos ORM do AegisFlow (modelo de dados multi-tenant).
 
 Cobre as entidades das Fases 1-5; nesta Fase 0 servem de base para as migrations.
 """
@@ -57,10 +57,10 @@ class User(Base):
     tenant: Mapped[Tenant] = relationship(back_populates="users")
 
 
-class NexusApiKey(Base):
+class AegisApiKey(Base):
     """Chave que as aplicações clientes usam para chamar o proxy (x-api-key)."""
 
-    __tablename__ = "nexus_api_keys"
+    __tablename__ = "aegis_api_keys"
 
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid.uuid4)
     tenant_id: Mapped[uuid.UUID] = mapped_column(
@@ -114,7 +114,7 @@ class UsageLog(Base):
         ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False, index=True
     )
     api_key_id: Mapped[uuid.UUID | None] = mapped_column(
-        ForeignKey("nexus_api_keys.id", ondelete="SET NULL"), nullable=True, index=True
+        ForeignKey("aegis_api_keys.id", ondelete="SET NULL"), nullable=True, index=True
     )
     request_id: Mapped[str] = mapped_column(String(64), nullable=False, index=True)
     provider: Mapped[str] = mapped_column(String(50), nullable=False)

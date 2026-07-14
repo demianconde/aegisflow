@@ -1,7 +1,7 @@
 """Smoke test do Stripe em homologação (test mode).
 
 Valida a STRIPE_SECRET_KEY de teste criando uma sessão de Checkout de assinatura
-(sem cobrar nada) e imprimindo a URL. Requer NEXUS_STRIPE_* no .env.
+(sem cobrar nada) e imprimindo a URL. Requer AEGIS_STRIPE_* no .env.
 
 Uso:  python scripts/stripe_smoke.py [pro|enterprise]
 """
@@ -35,7 +35,7 @@ def main() -> None:
             {
                 "price_data": {
                     "currency": "brl",
-                    "product_data": {"name": f"NexusGate {plan.label}"},
+                    "product_data": {"name": f"AegisFlow {plan.label}"},
                     "unit_amount": int(plan.price_brl * 100),
                     "recurring": {"interval": "month"},
                 },

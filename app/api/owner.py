@@ -1,4 +1,4 @@
-"""Console do dono (/gestaonexus): assinaturas, receita e leads. Acesso restrito."""
+"""Console do dono (/gestaoaegis): assinaturas, receita e leads. Acesso restrito."""
 
 from __future__ import annotations
 

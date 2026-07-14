@@ -10,8 +10,8 @@ from app.auth.tokens import extract_bearer
 
 def test_generate_api_key_shape() -> None:
     full, prefix, key_hash = generate_api_key()
-    assert full.startswith("nxg_")
-    assert prefix.startswith("nxg_")
+    assert full.startswith("agf_")
+    assert prefix.startswith("agf_")
     assert len(prefix) <= 16  # cabe na coluna key_prefix
     assert "." in full
     assert full.split(".", 1)[0] == prefix

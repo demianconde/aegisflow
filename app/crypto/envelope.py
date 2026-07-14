@@ -2,7 +2,7 @@
 
 Cada segredo é cifrado com uma DEK (Data Encryption Key) aleatória via AES-256-GCM.
 A DEK é, por sua vez, cifrada ("embrulhada") com a KEK (Key Encryption Key) mestra,
-lida de `NEXUS_MASTER_KEY` (base64 de 32 bytes). Só a KEK vive em segredo/secret
+lida de `AEGIS_MASTER_KEY` (base64 de 32 bytes). Só a KEK vive em segredo/secret
 manager; o banco guarda apenas material cifrado.
 
 Layout persistido (todos bytes):
@@ -44,13 +44,13 @@ def is_configured() -> bool:
 def _load_kek() -> bytes:
     raw = get_settings().master_key
     if not raw:
-        raise ValueError("NEXUS_MASTER_KEY não configurada")
+        raise ValueError("AEGIS_MASTER_KEY não configurada")
     try:
         kek = base64.b64decode(raw)
     except Exception as exc:  # noqa: BLE001
-        raise ValueError("NEXUS_MASTER_KEY não é base64 válido") from exc
+        raise ValueError("AEGIS_MASTER_KEY não é base64 válido") from exc
     if len(kek) != _KEY_LEN:
-        raise ValueError("NEXUS_MASTER_KEY deve ter 32 bytes (base64) após decodificar")
+        raise ValueError("AEGIS_MASTER_KEY deve ter 32 bytes (base64) após decodificar")
     return kek
 
 

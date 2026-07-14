@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="robots" content="noindex, nofollow">
-    <title>NexusGate · Gestão</title>
+    <title>AegisFlow · Gestão</title>
     <link rel="stylesheet" href="/static/styles.css?v=3">
     <script src="/static/vendor/supabase.js"></script>
 </head>
@@ -13,7 +13,7 @@
 
     <nav class="nav dash-nav glass">
         <div class="container nav-inner">
-            <div class="logo"><span class="mark">∞</span><span>NexusGate · Gestão</span></div>
+            <div class="logo"><span class="mark">∞</span><span>AegisFlow · Gestão</span></div>
             <div class="nav-cta">
                 <span class="link-quiet" id="ownerEmail"></span>
                 <button class="btn btn-ghost btn-sm" id="logoutBtn" style="display:none">Sair</button>
@@ -28,7 +28,7 @@
             <!-- Tela de login -->
             <div id="loginView" class="auth-wrap" style="min-height:60vh">
                 <div class="auth-card glass">
-                    <div class="auth-logo"><span class="mark">∞</span><span>Gestão NexusGate</span></div>
+                    <div class="auth-logo"><span class="mark">∞</span><span>Gestão AegisFlow</span></div>
                     <p class="auth-sub">Acesso restrito ao dono.</p>
                     <div class="msg" id="loginMsg"></div>
                     <button class="btn btn-primary btn-block" id="googleBtn">Entrar com Google</button>
@@ -145,7 +145,7 @@
             function showAccessDenied() {
                 loginView.style.display = 'none';
                 consoleView.style.display = 'none';
-                showMsg('Acesso negado: este e-mail não é o dono do NexusGate.', 'error');
+                showMsg('Acesso negado: este e-mail não é o dono do AegisFlow.', 'error');
                 document.getElementById('logoutBtn').style.display = '';
             }
 
@@ -164,7 +164,7 @@
                 // Modo dev: entra direto (bypass).
                 if (cfg.dev_mode) {
                     token = 'dev-local-access';
-                    showConsole('dev-owner@nexusgate.local');
+                    showConsole('dev-owner@aegisflow.local');
                     return;
                 }
                 if (!cfg.configured) { loginMsg.textContent = 'Supabase não configurado.'; loginMsg.className = 'msg show warn'; return; }
@@ -193,19 +193,19 @@
 
             document.getElementById('googleBtn').addEventListener('click', async () => {
                 if (!client) return;
-                await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/gestaonexus' } });
+                await client.auth.signInWithOAuth({ provider: 'google', options: { redirectTo: window.location.origin + '/gestaoaegis' } });
             });
             document.getElementById('magicBtn').addEventListener('click', async () => {
                 if (!client) return;
                 const email = document.getElementById('email').value.trim();
                 if (!email) return;
-                const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/gestaonexus' } });
+                const { error } = await client.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.origin + '/gestaoaegis' } });
                 loginMsg.className = 'msg show ' + (error ? 'error' : 'ok');
                 loginMsg.textContent = error ? error.message : 'Link enviado! Verifique seu e-mail.';
             });
             document.getElementById('logoutBtn').addEventListener('click', async () => {
                 try { if (client) await client.auth.signOut(); } catch (e) {}
-                localStorage.removeItem('nexus_token');
+                localStorage.removeItem('aegis_token');
                 window.location.href = '/';
             });
 

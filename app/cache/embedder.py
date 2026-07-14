@@ -1,7 +1,7 @@
 """Embeddings locais via Ollama (offline).
 
 Usa o endpoint /api/embed do Ollama. Se não houver modelo configurado
-(`NEXUS_EMBED_MODEL`) ou o Ollama estiver indisponível, retorna None e o cache
+(`AEGIS_EMBED_MODEL`) ou o Ollama estiver indisponível, retorna None e o cache
 é simplesmente ignorado (fail-open) — nada quebra offline.
 """
 

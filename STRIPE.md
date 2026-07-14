@@ -4,7 +4,7 @@
 A doc do Stripe é explícita: *"If you're a subscription-based SaaS business, but don't
 extend Stripe products or payment processing to your merchants, you don't need Connect."*
 
-O NexusGate cobra **assinatura própria** dos tenants (modelo BYOK zero-markup). Isso é
+O AegisFlow cobra **assinatura própria** dos tenants (modelo BYOK zero-markup). Isso é
 **Stripe Billing** (Checkout + Subscriptions) — já implementado. **Connect** só entraria se
 os seus clientes fossem receber pagamentos dos **clientes deles** (marketplace), o que não
 é o caso.
@@ -17,7 +17,7 @@ os seus clientes fossem receber pagamentos dos **clientes deles** (marketplace),
 3. **Preencha o `.env`:**
    ```bash
    STRIPE_SECRET_KEY=sk_test_xxx
-   NEXUS_STRIPE_PAYMENT_METHODS=card     # cartão é o método recorrente confiável
+   AEGIS_STRIPE_PAYMENT_METHODS=card     # cartão é o método recorrente confiável
    ```
 4. **Smoke test** (cria uma sessão de checkout de teste e imprime a URL):
    ```bash
@@ -47,7 +47,7 @@ os seus clientes fossem receber pagamentos dos **clientes deles** (marketplace),
   recorrente seria preciso um fluxo de faturas one-time por período (ou um PSP local como
   Pagar.me/Asaas). Fica como evolução; não bloqueia a homologação por cartão.
 - **Boleto**: suportado em alguns fluxos BR; se quiser testar, use
-  `NEXUS_STRIPE_PAYMENT_METHODS=card,boleto`.
+  `AEGIS_STRIPE_PAYMENT_METHODS=card,boleto`.
 
 ## Cartões de teste úteis
 - Sucesso: `4242 4242 4242 4242`

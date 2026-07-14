@@ -1,6 +1,6 @@
-"""Chaves de API do NexusGate (x-api-key) usadas pelas apps clientes.
+"""Chaves de API do AegisFlow (x-api-key) usadas pelas apps clientes.
 
-Formato: ``nxg_<8 hex>.<segredo>``. Guardamos apenas o prefixo (para lookup) e o
+Formato: ``agf_<8 hex>.<segredo>``. Guardamos apenas o prefixo (para lookup) e o
 hash SHA-256 da chave completa. O valor em claro só é mostrado uma vez, na criação.
 
 Suporta **chaves virtuais**: limites de rpm, orçamento mensal (USD) e allowlist de
@@ -19,22 +19,22 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.billing.plans import get_plan
-from app.db.models import NexusApiKey, Tenant
+from app.db.models import AegisApiKey, Tenant
 from app.db.session import get_db
 from app.ratelimit import enforce_minute, enforce_monthly_quota
 
-_PREFIX_NAMESPACE = "nxg_"
+_PREFIX_NAMESPACE = "agf_"
 
 
 @dataclass
 class ApiContext:
     tenant: Tenant
-    key: NexusApiKey
+    key: AegisApiKey
 
 
 def generate_api_key() -> tuple[str, str, str]:
     """Gera (chave_completa, prefixo, hash). A chave completa não é persistida."""
-    prefix = _PREFIX_NAMESPACE + secrets.token_hex(4)  # ex.: nxg_a1b2c3d4 (12 chars)
+    prefix = _PREFIX_NAMESPACE + secrets.token_hex(4)  # ex.: agf_a1b2c3d4 (12 chars)
     secret = secrets.token_urlsafe(32)
     full_key = f"{prefix}.{secret}"
     return full_key, prefix, hash_key(full_key)
@@ -64,9 +64,9 @@ async def get_api_context(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Chave de API inválida")
 
     result = await db.execute(
-        select(NexusApiKey).where(
-            NexusApiKey.key_prefix == prefix,
-            NexusApiKey.revoked_at.is_(None),
+        select(AegisApiKey).where(
+            AegisApiKey.key_prefix == prefix,
+            AegisApiKey.revoked_at.is_(None),
         )
     )
     key = result.scalar_one_or_none()

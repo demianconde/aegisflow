@@ -41,7 +41,7 @@ def upgrade() -> None:
     op.create_index("ix_users_tenant_id", "users", ["tenant_id"])
 
     op.create_table(
-        "nexus_api_keys",
+        "aegis_api_keys",
         sa.Column("id", sa.Uuid(), primary_key=True),
         sa.Column("tenant_id", sa.Uuid(), sa.ForeignKey("tenants.id", ondelete="CASCADE"), nullable=False),
         sa.Column("key_prefix", sa.String(16), nullable=False, unique=True),
@@ -50,8 +50,8 @@ def upgrade() -> None:
         sa.Column("created_at", sa.DateTime(timezone=True), server_default=sa.func.now(), nullable=False),
         sa.Column("revoked_at", sa.DateTime(timezone=True), nullable=True),
     )
-    op.create_index("ix_nexus_api_keys_tenant_id", "nexus_api_keys", ["tenant_id"])
-    op.create_index("ix_nexus_api_keys_key_prefix", "nexus_api_keys", ["key_prefix"])
+    op.create_index("ix_aegis_api_keys_tenant_id", "aegis_api_keys", ["tenant_id"])
+    op.create_index("ix_aegis_api_keys_key_prefix", "aegis_api_keys", ["key_prefix"])
 
     op.create_table(
         "provider_keys",
@@ -101,6 +101,6 @@ def downgrade() -> None:
     op.drop_table("subscriptions")
     op.drop_table("usage_logs")
     op.drop_table("provider_keys")
-    op.drop_table("nexus_api_keys")
+    op.drop_table("aegis_api_keys")
     op.drop_table("users")
     op.drop_table("tenants")

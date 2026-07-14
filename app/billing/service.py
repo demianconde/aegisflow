@@ -165,7 +165,7 @@ async def create_checkout(tenant: Tenant, plan_key: str, success_url: str, cance
             {
                 "price_data": {
                     "currency": "brl",
-                    "product_data": {"name": f"NexusGate {plan.label}"},
+                    "product_data": {"name": f"AegisFlow {plan.label}"},
                     "unit_amount": int(plan.price_brl * 100),
                     "recurring": {"interval": "month"},
                 },
