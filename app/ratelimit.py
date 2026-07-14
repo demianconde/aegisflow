@@ -16,17 +16,25 @@ _log = get_logger("ratelimit")
 _WINDOW_SECONDS = 60
 
 
-def _on_redis_error(exc: RedisError) -> None:
-    """Fail-open (segue) ou fail-closed (503), conforme configuração."""
+def _on_redis_error(exc: RedisError, *, fail_open: bool = False) -> None:
+    """Fail-open (segue) ou fail-closed (503), conforme configuração.
+
+    ``fail_open=True`` força seguir mesmo em produção — usado em endpoints públicos
+    (ex.: formulário de leads), onde é inaceitável retornar 503 só porque o Redis
+    (anti-spam best-effort) está indisponível. Endpoints medidos (API/proxy) mantêm
+    o padrão fail-closed em produção.
+    """
     _log.warning("rate_limit_unavailable", error=str(exc))
-    if get_settings().ratelimit_fail_closed_effective:
+    if not fail_open and get_settings().ratelimit_fail_closed_effective:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Serviço de limites indisponível.",
         ) from exc
 
 
-async def enforce_minute(subject: str, rpm: int, label: str = "requisições") -> None:
+async def enforce_minute(
+    subject: str, rpm: int, label: str = "requisições", *, fail_open: bool = False
+) -> None:
     """Limite por minuto para um 'subject' (tenant ou chave)."""
     now = int(time.time())
     key = f"rl:{subject}:{now // _WINDOW_SECONDS}"
@@ -36,7 +44,7 @@ async def enforce_minute(subject: str, rpm: int, label: str = "requisições") -
         if count == 1:
             await redis.expire(key, _WINDOW_SECONDS)
     except RedisError as exc:
-        _on_redis_error(exc)
+        _on_redis_error(exc, fail_open=fail_open)
         return
     if count > rpm:
         raise HTTPException(

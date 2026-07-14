@@ -23,7 +23,9 @@ async def create_lead(
 ) -> dict:
     """Registra um lead do formulário de interesse (público, com rate limit por IP)."""
     ip = request.client.host if request.client else "anon"
-    await enforce_minute(f"lead:{ip}", 10, label="envios")  # anti-spam simples
+    # anti-spam best-effort: se o Redis estiver indisponível, NÃO bloqueia o lead
+    # (formulário público jamais deve dar 503 por causa do rate limiter).
+    await enforce_minute(f"lead:{ip}", 10, label="envios", fail_open=True)
 
     email = (body.email or "").strip().lower()
     name = (body.name or "").strip()
