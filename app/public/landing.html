@@ -227,26 +227,34 @@ resp = client.chat.completions.create(
     <!-- Formulário de interesse -->
     <section class="section cta" id="interesse">
         <div class="container" style="max-width:46rem">
-            <h2>Quer economizar na sua conta de IA?</h2>
-            <p>Estamos abrindo as primeiras vagas. Deixe seu contato e avisamos assim que liberarmos o acesso — sem compromisso.</p>
-            <form id="leadForm" class="sim-card glass" style="text-align:left;margin-top:1rem">
-                <div class="msg" id="leadMsg"></div>
-                <div class="field"><label for="lName">Nome*</label><input class="input" id="lName" required></div>
-                <div class="field"><label for="lEmail">E-mail*</label><input class="input" id="lEmail" type="email" required></div>
-                <div class="field"><label for="lCompany">Empresa</label><input class="input" id="lCompany"></div>
-                <div class="field">
-                    <label for="lSpend">Gasto mensal atual com IA (aprox.)</label>
-                    <select class="input" id="lSpend">
-                        <option value="">Prefiro não dizer</option>
-                        <option>Até R$ 500</option>
-                        <option>R$ 500 – 5.000</option>
-                        <option>R$ 5.000 – 20.000</option>
-                        <option>Acima de R$ 20.000</option>
-                    </select>
-                </div>
-                <div class="field"><label for="lMsg">Mensagem (opcional)</label><textarea class="input" id="lMsg" rows="3" placeholder="Conte seu caso de uso..."></textarea></div>
-                <button class="btn btn-primary btn-block" type="submit" id="leadBtn">Quero participar</button>
-            </form>
+            <div id="leadIntro">
+                <h2>Quer economizar na sua conta de IA?</h2>
+                <p>Estamos abrindo as primeiras vagas. Deixe seu contato e avisamos assim que liberarmos o acesso — sem compromisso.</p>
+                <form id="leadForm" class="sim-card glass" style="text-align:left;margin-top:1rem">
+                    <div class="msg" id="leadMsg"></div>
+                    <div class="field"><label for="lName">Nome*</label><input class="input" id="lName" required></div>
+                    <div class="field"><label for="lEmail">E-mail*</label><input class="input" id="lEmail" type="email" required></div>
+                    <div class="field"><label for="lCompany">Empresa</label><input class="input" id="lCompany"></div>
+                    <div class="field">
+                        <label for="lSpend">Gasto mensal atual com IA (aprox.)</label>
+                        <select class="input" id="lSpend">
+                            <option value="">Prefiro não dizer</option>
+                            <option>Até R$ 500</option>
+                            <option>R$ 500 – 5.000</option>
+                            <option>R$ 5.000 – 20.000</option>
+                            <option>Acima de R$ 20.000</option>
+                        </select>
+                    </div>
+                    <div class="field"><label for="lMsg">Mensagem (opcional)</label><textarea class="input" id="lMsg" rows="3" placeholder="Conte seu caso de uso..."></textarea></div>
+                    <button class="btn btn-primary btn-block" type="submit" id="leadBtn">Quero participar</button>
+                </form>
+            </div>
+
+            <div id="leadSuccess" class="sim-card glass" style="display:none; text-align:center; padding:2.5rem 2rem">
+                <div style="font-size:3rem; line-height:1; margin-bottom:0.5rem">✅</div>
+                <h2 style="border:0; margin:0 0 0.5rem">Recebemos seu interesse!</h2>
+                <p style="margin:0 auto; max-width:32rem">Obrigado! Assim que liberarmos o acesso, avisamos no seu e-mail. Enquanto isso, fique de olho na caixa de entrada. 🚀</p>
+            </div>
         </div>
     </section>
 
@@ -339,8 +347,11 @@ resp = client.chat.completions.create(
                         const d = await res.json().catch(() => ({}));
                         if (!res.ok) throw new Error(d.detail || 'Falha ao enviar.');
                         leadForm.reset();
-                        leadMsg.className = 'msg show ok';
-                        leadMsg.textContent = d.message || 'Obrigado! Entraremos em contato.';
+                        // fecha o formulário e mostra o estado de sucesso
+                        document.getElementById('leadIntro').style.display = 'none';
+                        const ok = document.getElementById('leadSuccess');
+                        ok.style.display = '';
+                        ok.scrollIntoView({ behavior: 'smooth', block: 'center' });
                     } catch (err) {
                         leadMsg.className = 'msg show error';
                         leadMsg.textContent = err.message;
