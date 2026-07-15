@@ -47,24 +47,21 @@ class Settings(BaseSettings):
         - ``channel_binding`` → removido (o asyncpg não aceita)
         URLs que já trazem driver (``+asyncpg``, ``+psycopg``) mantêm o esquema.
         """
+        import re
+
         if v.startswith("postgres://"):  # esquema legado (Heroku)
             v = "postgresql://" + v[len("postgres://") :]
         if v.startswith("postgresql://"):  # sem driver → adiciona asyncpg
             v = "postgresql+asyncpg://" + v[len("postgresql://") :]
 
-        parts = urlsplit(v)
-        # Corrige porta vazia (Railway/Fly às vezes fornecem DATABASE_URL sem :port,
-        # ex.: postgres://user:pass@host/dbname — o urlsplit retorna port="").
-        netloc = parts.hostname or ""
-        if parts.port:
-            netloc += f":{parts.port}"
-        elif parts.username:
-            # Reconstrói netloc sem porta (usa a default 5432 do asyncpg)
-            netloc = f"{parts.username}"
-            if parts.password:
-                netloc += f":{parts.password}"
-            netloc += f"@{parts.hostname}"
+        # Corrige porta vazia entre host e path (Railway/Fly às vezes fornecem
+        # DATABASE_URL sem :port, ex.: postgres://...@host/dbname → adiciona :5432).
+        # Exemplo: ...@host.railway.internal/db → ...@host.railway.internal:5432/db
+        v = re.sub(r"@([^/:]+)/(?=[^/])", r"@\1:5432/", v)
 
+        parts = urlsplit(v)
+        if not parts.query:
+            return v
         kept: list[tuple[str, str]] = []
         for key, val in parse_qsl(parts.query, keep_blank_values=True):
             if key == "channel_binding":
@@ -74,7 +71,7 @@ class Settings(BaseSettings):
                     kept.append(("ssl", val.lower()))
                 continue
             kept.append((key, val))
-        return urlunsplit(parts._replace(netloc=netloc, query=urlencode(kept)))
+        return urlunsplit(parts._replace(query=urlencode(kept)))
 
     # Supabase (Fase 1)
     supabase_url: str | None = Field(default=None, alias="SUPABASE_URL")
