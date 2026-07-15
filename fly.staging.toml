@@ -1,0 +1,40 @@
+# fly.staging.toml — AegisFlow Staging (homologação)
+# Modo dev com SQLite — não depende de Postgres/Redis externos.
+app = "aegisflow-staging"
+primary_region = "gru"
+
+[build]
+
+# No staging, migrations rodam com SQLite local.
+[deploy]
+  release_command = "alembic upgrade head"
+
+# Segredos via `fly secrets set -a aegisflow-staging`.
+# Não sensíveis: modo dev para testar sem depender de infra externa.
+[env]
+  AEGIS_ENV = "development"
+  AEGIS_DEV_MODE = "true"
+  AEGIS_LOG_JSON = "false"
+  AEGIS_CORS_ORIGINS = "*"
+
+[processes]
+  app = "uvicorn app.main:app --host 0.0.0.0 --port 8000"
+
+[http_service]
+  internal_port = 8000
+  force_https = true
+  auto_stop_machines = "stop"
+  auto_start_machines = true
+  min_machines_running = 1
+  processes = ["app"]
+
+  [[http_service.checks]]
+    interval = "15s"
+    timeout = "3s"
+    grace_period = "20s"
+    method = "GET"
+    path = "/health"
+
+[[vm]]
+  size = "shared-cpu-1x"
+  memory = "256mb"
