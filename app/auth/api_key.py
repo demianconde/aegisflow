@@ -79,7 +79,11 @@ async def get_api_context(
         raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Tenant inativo")
 
     plan = get_plan(tenant.plan)
-    # Rate limit por minuto: chave virtual pode ter limite proprio (senao, o do plano).
+    # Teto de vazao do TENANT: o plano define a capacidade total; chaves virtuais
+    # subdividem essa capacidade, nao a multiplicam. Sem isto, criar N chaves daria
+    # N x rpm efetivo, driblando o limite do plano (anti-abuso).
+    await enforce_minute(f"tenant:{tenant.id}", plan.rpm, "requisicoes do plano")
+    # Rate limit por minuto da chave: chave virtual pode ter limite proprio (<= plano).
     effective_rpm = key.rpm_limit if key.rpm_limit is not None else plan.rpm
     await enforce_minute(f"key:{key.id}", effective_rpm)
     # Quota mensal de requisicoes (nivel tenant/plano).

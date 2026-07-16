@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.api_key import generate_api_key
 from app.auth.supabase import get_current_user
+from app.billing.plans import get_plan
 from app.db.models import AegisApiKey, Tenant, User
 from app.db.session import get_db
 
@@ -101,6 +102,27 @@ async def create_key(
     user: User = Depends(get_current_user),
     db: AsyncSession = Depends(get_db),
 ) -> ApiKeyCreated:
+    # Anti-abuso: teto de chaves ativas por plano (evita spam de chaves e o
+    # bypass de rpm por multiplas chaves).
+    tenant = await db.get(Tenant, user.tenant_id)
+    plan = get_plan(tenant.plan)
+    active = await db.scalar(
+        select(func.count())
+        .select_from(AegisApiKey)
+        .where(
+            AegisApiKey.tenant_id == user.tenant_id,
+            AegisApiKey.revoked_at.is_(None),
+        )
+    )
+    if (active or 0) >= plan.max_api_keys:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=(
+                f"Limite de {plan.max_api_keys} chaves ativas do plano "
+                f"'{plan.label}' atingido. Revogue uma chave ou faca upgrade."
+            ),
+        )
+
     full_key, prefix, key_hash = generate_api_key()
     record = AegisApiKey(
         tenant_id=user.tenant_id, key_prefix=prefix, key_hash=key_hash, name=body.name

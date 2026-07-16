@@ -10,8 +10,9 @@ class Plan:
     key: str
     label: str
     price_brl: float
-    rpm: int  # requisições por minuto (rate limit)
+    rpm: int  # requisições por minuto (rate limit) — teto de vazão do TENANT
     monthly_quota: int  # requisições por mês
+    max_api_keys: int  # nº máximo de chaves agf_ ativas (anti-abuso)
     features: tuple[str, ...]
 
 
@@ -22,6 +23,7 @@ PLANS: dict[str, Plan] = {
         price_brl=0.0,
         rpm=60,
         monthly_quota=10_000,
+        max_api_keys=2,
         features=("Roteamento por custo", "Cache semântico", "Cofre BYOK cifrado"),
     ),
     "pro": Plan(
@@ -30,6 +32,7 @@ PLANS: dict[str, Plan] = {
         price_brl=249.0,
         rpm=600,
         monthly_quota=500_000,
+        max_api_keys=10,
         features=(
             "Roteamento avançado + fallback",
             "Multi-provider (qualquer LLM/local)",
@@ -42,6 +45,7 @@ PLANS: dict[str, Plan] = {
         price_brl=999.0,
         rpm=6_000,
         monthly_quota=5_000_000,
+        max_api_keys=50,
         features=(
             "Tudo do Pro",
             "Chaves virtuais (orçamento e limite por chave)",
