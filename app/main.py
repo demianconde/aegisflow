@@ -5,12 +5,19 @@ from __future__ import annotations
 import hmac
 import uuid
 from contextlib import asynccontextmanager
+from datetime import UTC, datetime
 from pathlib import Path
 
 import structlog
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
+from fastapi.middleware.gzip import GZipMiddleware
+from fastapi.responses import (
+    FileResponse,
+    JSONResponse,
+    PlainTextResponse,
+    RedirectResponse,
+)
 from fastapi.staticfiles import StaticFiles
 
 from app import __version__
@@ -75,6 +82,9 @@ def create_app() -> FastAPI:
         openapi_url=None,
     )
 
+    # Compressão gzip (HTML/CSS/JS/JSON) — melhora LCP/Core Web Vitals.
+    app.add_middleware(GZipMiddleware, minimum_size=500)
+
     # Em produção, use uma allowlist (AEGIS_CORS_ORIGINS). Em dev, libera tudo.
     cors_origins = settings.cors_origin_list if settings.is_production else ["*"]
     app.add_middleware(
@@ -87,12 +97,27 @@ def create_app() -> FastAPI:
 
     @app.middleware("http")
     async def request_context(request: Request, call_next):
-        """Injeta um request_id no contexto de log de cada requisição."""
+        """request_id no log + redirect www→apex + cache de estáticos + HSTS."""
+        # Canonicalização de host: www.aegisflow.tech → aegisflow.tech (evita duplicação).
+        host = request.headers.get("host", "")
+        if host.startswith("www."):
+            target = f"https://{host[4:]}{request.url.path}"
+            if request.url.query:
+                target += f"?{request.url.query}"
+            return RedirectResponse(target, status_code=301)
+
         request_id = request.headers.get("x-request-id", str(uuid.uuid4()))
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
         response = await call_next(request)
         response.headers["x-request-id"] = request_id
+        # Estáticos versionados (?v=) podem ser cacheados por muito tempo.
+        if request.url.path.startswith("/static/"):
+            response.headers["Cache-Control"] = "public, max-age=31536000, immutable"
+        if settings.is_production:
+            response.headers["Strict-Transport-Security"] = (
+                "max-age=31536000; includeSubDomains"
+            )
         return response
 
     app.include_router(health.router)
@@ -160,12 +185,13 @@ def create_app() -> FastAPI:
     @app.get("/sitemap.xml", include_in_schema=False)
     async def sitemap() -> PlainTextResponse:
         base = "https://aegisflow.tech"
+        lastmod = datetime.now(UTC).date().isoformat()
         paths = [("/", "1.0"), ("/artigos", "0.8")]
         paths += [(f"/artigos/{slug}", "0.9") for slug in ARTICLES]
         paths += [("/documentacao", "0.6"), ("/termos", "0.3"), ("/privacidade", "0.3")]
         urls = "".join(
-            f"<url><loc>{base}{p}</loc><changefreq>weekly</changefreq>"
-            f"<priority>{prio}</priority></url>"
+            f"<url><loc>{base}{p}</loc><lastmod>{lastmod}</lastmod>"
+            f"<changefreq>weekly</changefreq><priority>{prio}</priority></url>"
             for p, prio in paths
         )
         xml = (
