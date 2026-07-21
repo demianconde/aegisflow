@@ -66,6 +66,8 @@ make dev                # uvicorn com reload
 > **Qualquer LLM, inclusive local:** cadastre uma credencial com `provider` conhecido (usa base_url padrão) ou `custom`/local com `base_url` própria (ex.: Ollama em `http://localhost:11434/v1`, sem API key). O painel detecta automaticamente se o endpoint é **local** e exibe o **modelo** configurado.
 >
 > **Ollama:** o provider `ollama` usa o `format: "ollama"` (API nativa `/api/chat`), com **thinking desligado** (`think: false`) e **contexto fixo** (`num_ctx: 8192`) — evita o crash de modelos com contexto declarado gigante (ex.: 262k) e mantém respostas rápidas. Defina o `default_model` para um modelo instalado (`ollama list`).
+>
+> **Modelos locais (self-host) e SSRF:** endpoints em rede privada/local (Ollama, LM Studio, vLLM) são **bloqueados por padrão** (proteção anti-SSRF). Isso só faz sentido em **self-host**, onde o AegisFlow roda na mesma rede que o modelo. Libere de forma **granular** com `AEGIS_PRIVATE_ENDPOINT_ALLOWLIST=localhost:11434` (permite só aquele host) — mais seguro que `AEGIS_ALLOW_PRIVATE_ENDPOINTS=true`, que abre a rede privada inteira. **No SaaS gerenciado (nuvem) o Ollama do seu `localhost` não é alcançável** — use um provedor em nuvem ou rode o AegisFlow no seu ambiente.
 
 Rate limiting por tenant (janela de 1 min): free=60, pro=600, enterprise=6000 req/min.
 

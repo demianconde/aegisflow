@@ -38,6 +38,15 @@ AEGIS_EMBED_MODEL=nomic-embed-text
 # Segurança (LGPD)
 AEGIS_PII_GUARD=true         # redige PII antes de enviar a provedores hospedados
 
+# Anti-abuso do cadastro grátis
+AEGIS_BLOCK_DISPOSABLE_EMAIL=true   # bloqueia e-mail descartável no cadastro
+AEGIS_SIGNUP_IP_DAILY_LIMIT=5       # máx. de contas novas por IP/dia
+
+# Endpoints privados / modelos locais (só self-host; NO SaaS gerenciado deixe vazio)
+# Preferir o allowlist granular ao invés de abrir toda a rede privada:
+AEGIS_PRIVATE_ENDPOINT_ALLOWLIST=   # ex.: localhost:11434,ollama:11434
+AEGIS_ALLOW_PRIVATE_ENDPOINTS=false # true = libera TODA a rede privada (menos seguro)
+
 # Billing
 STRIPE_SECRET_KEY=sk_live_...
 STRIPE_WEBHOOK_SECRET=whsec_...

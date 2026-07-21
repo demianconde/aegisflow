@@ -88,6 +88,10 @@ class Settings(BaseSettings):
     log_content: bool = Field(default=False, alias="AEGIS_LOG_CONTENT")
     # Permite endpoints de provedor em rede privada/local (self-host). Em SaaS: false.
     allow_private_endpoints: bool = Field(default=False, alias="AEGIS_ALLOW_PRIVATE_ENDPOINTS")
+    # Allowlist granular de hosts privados permitidos (host ou host:port, separados por
+    # vírgula). Mais seguro que allow_private_endpoints=true: libera SÓ estes hosts
+    # (ex.: o Ollama), sem abrir toda a rede privada nem o metadata da nuvem.
+    private_endpoint_allowlist: str = Field(default="", alias="AEGIS_PRIVATE_ENDPOINT_ALLOWLIST")
     # Rate limit / quota: se true, bloqueia quando o Redis está indisponível (fail-closed).
     ratelimit_fail_closed: bool = Field(default=False, alias="AEGIS_RATELIMIT_FAIL_CLOSED")
 
@@ -155,6 +159,11 @@ class Settings(BaseSettings):
     def disposable_email_extra_set(self) -> set[str]:
         """Domínios descartáveis extras configurados via ambiente (minúsculas)."""
         return {d.strip().lower() for d in self.disposable_email_domains.split(",") if d.strip()}
+
+    @property
+    def private_endpoint_allowlist_set(self) -> set[str]:
+        """Hosts privados explicitamente permitidos (host ou host:port, minúsculas)."""
+        return {h.strip().lower() for h in self.private_endpoint_allowlist.split(",") if h.strip()}
 
     @property
     def ratelimit_fail_closed_effective(self) -> bool:

@@ -87,6 +87,21 @@ Referência única de infraestrutura, dados e como publicar. Atualizado em jul/2
 
 **Opcionais** (classificador IA): `AEGIS_ROUTING_MODE`, `AEGIS_CLASSIFIER_URL`, `AEGIS_CLASSIFIER_MODEL`, `AEGIS_CLASSIFIER_API_KEY`. Billing (futuro): `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`.
 
+**Anti-abuso do cadastro grátis:** `AEGIS_BLOCK_DISPOSABLE_EMAIL` (padrão `true`), `AEGIS_DISPOSABLE_EMAIL_DOMAINS` (extras), `AEGIS_SIGNUP_IP_DAILY_LIMIT` (padrão `5`).
+
+### Endpoints privados / self-host (anti-SSRF)
+
+Endpoints de provedor em rede privada/local (Ollama, LM Studio, vLLM) são **bloqueados por padrão**: num gateway **compartilhado**, "IP privado" é a rede interna da nuvem (e o metadata `169.254.169.254`) — liberar seria SSRF entre tenants. Por isso, **no SaaS gerenciado deixe tudo desligado** (e o Ollama do `localhost` do cliente é inalcançável a partir da nuvem, de qualquer forma).
+
+Em **self-host** (gateway na mesma rede que o modelo, single-tenant) há duas opções, da mais segura para a menos:
+
+| Variável | Efeito | Recomendação |
+|---|---|---|
+| `AEGIS_PRIVATE_ENDPOINT_ALLOWLIST` | Libera **só** os hosts listados (host ou `host:port`, vírgula). Ex.: `localhost:11434,ollama:11434` | **Preferir** — granular; não abre o metadata da nuvem |
+| `AEGIS_ALLOW_PRIVATE_ENDPOINTS=true` | Libera **toda** a faixa privada | Evitar; só quando o allowlist não serve |
+
+O allowlist é config do **operador** (nunca do tenant), então não há como um tenant liberar um host arbitrário. Para local **sem** self-host, o padrão seguro é um túnel/conector iniciado pelo cliente (feature futura).
+
 ## 6. Deploy — runbook
 
 **Pré-requisitos:** `flyctl` instalado e `fly auth login`; acesso de push ao repo.
