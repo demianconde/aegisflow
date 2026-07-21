@@ -4,7 +4,7 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Painel · AegisFlow</title>
-    <link rel="stylesheet" href="/static/styles.css?v=6">
+    <link rel="stylesheet" href="/static/styles.css?v=7">
     <script src="/static/vendor/supabase.js"></script>
 </head>
 <body>
@@ -95,9 +95,9 @@
                     </div>
                     <div class="field">
                         <label for="providerModel">Modelo padrão <span class="muted">(usado no roteamento aegis-auto e p/ locais)</span></label>
-                        <div style="display:flex; gap:0.5rem; align-items:stretch">
-                            <input class="input" id="providerModel" type="text" placeholder="ex.: openai/gpt-5-mini — ou clique em Escolher modelo" style="flex:1" autocomplete="off">
-                            <button class="btn btn-outline" type="button" id="loadModelsBtn">Escolher modelo</button>
+                        <div style="display:flex; gap:0.5rem; align-items:center">
+                            <input class="input" id="providerModel" type="text" placeholder="ex.: openai/gpt-5-mini — ou clique em Escolher modelo" style="flex:1 1 auto; min-width:0" autocomplete="off">
+                            <button class="btn btn-outline" type="button" id="loadModelsBtn" style="width:auto; flex:0 0 auto; white-space:nowrap">Escolher modelo</button>
                         </div>
                         <span class="muted" id="modelsHint"></span>
                     </div>
@@ -504,26 +504,28 @@
                     providersContainer.innerHTML = '<div class="empty">Nenhuma credencial ainda. Adicione a primeira acima.</div>';
                     return;
                 }
-                let html = '<table class="table"><thead><tr><th>Provedor</th><th>Modelo</th><th>Endpoint</th><th>Nome da API</th><th></th></tr></thead><tbody>';
+                let html = '<div class="cred-list">';
                 for (const k of keys) {
-                    const providerCell = escapeHtml(k.provider_label || k.provider)
-                        + (k.is_local ? ' <span class="badge-status active">Local</span>' : '');
+                    const badge = k.is_local ? ' <span class="badge-status active">Local</span>' : '';
+                    const label = k.label ? '<span class="cred-label">· ' + escapeHtml(k.label) + '</span>' : '';
                     const model = k.default_model
                         ? escapeHtml(k.default_model)
-                        : '<span class="text-mono-mut">' + (k.is_local ? '⚠ defina o modelo' : 'por requisição') + '</span>';
-                    const setModelBtn = ' <button class="btn btn-outline btn-sm" data-setmodel="' + k.id + '">'
+                        : '<span class="muted-model">' + (k.is_local ? '⚠ defina o modelo' : 'por requisição') + '</span>';
+                    const setModelLink = '<button class="linkbtn" data-setmodel="' + k.id + '">'
                         + (k.default_model ? 'trocar' : 'definir') + '</button>';
-                    html += '<tr>'
-                        + '<td>' + providerCell + '</td>'
-                        + '<td class="mono">' + model + setModelBtn + '</td>'
-                        + '<td class="mono" style="font-size:0.78rem">' + escapeHtml(k.base_url || '—') + '</td>'
-                        + '<td>' + escapeHtml(k.label || '') + '</td>'
-                        + '<td style="white-space:nowrap">'
-                        + '<button class="btn btn-outline btn-sm" data-setkey="' + k.id + '">Trocar chave</button> '
-                        + '<button class="btn btn-danger btn-sm" data-delprov="' + k.id + '">Remover</button></td>'
-                        + '</tr>';
+                    html += '<div class="cred-card">'
+                        + '<div class="cred-info">'
+                        + '<div class="cred-top"><span class="cred-provider">' + escapeHtml(k.provider_label || k.provider) + '</span>' + badge + label + '</div>'
+                        + '<div class="cred-model">' + model + ' ' + setModelLink + '</div>'
+                        + '<div class="cred-endpoint" title="' + escapeHtml(k.base_url || '') + '">' + escapeHtml(k.base_url || '—') + '</div>'
+                        + '</div>'
+                        + '<div class="cred-actions">'
+                        + '<button class="btn btn-outline btn-sm" data-setkey="' + k.id + '">Trocar chave</button>'
+                        + '<button class="btn btn-danger btn-sm" data-delprov="' + k.id + '">Remover</button>'
+                        + '</div>'
+                        + '</div>';
                 }
-                html += '</tbody></table>';
+                html += '</div>';
                 providersContainer.innerHTML = html;
                 providersContainer.querySelectorAll('[data-delprov]').forEach(btn => {
                     btn.addEventListener('click', () => deleteProviderKey(btn.getAttribute('data-delprov')));
