@@ -32,6 +32,43 @@ def _send_sync(
             smtp.send_message(msg)
 
 
+async def send_signup_notification(email: str, tenant_name: str) -> None:
+    """Avisa o dono quando alguém ativa o teste grátis. No-op se SMTP não configurado."""
+    s = get_settings()
+    to_addr = s.leads_notify_email or s.smtp_from or s.smtp_user
+    if not (s.smtp_host and to_addr):
+        _log.info("signup_notify_skipped", reason="smtp_nao_configurado")
+        return
+
+    sender = s.smtp_from or s.smtp_user or to_addr
+    msg = EmailMessage()
+    msg["Subject"] = f"🎉 Novo cadastro grátis no AegisFlow: {email or 'sem e-mail'}"
+    msg["From"] = sender
+    msg["To"] = to_addr
+    if email:
+        msg["Reply-To"] = email
+    msg.set_content(
+        "\n".join(
+            [
+                "Alguém ativou o teste grátis do AegisFlow:",
+                "",
+                f"E-mail: {email or '-'}",
+                f"Conta:  {tenant_name or '-'}",
+                "",
+                "Console do dono: https://aegisflow.tech/gestaoaegis",
+            ]
+        )
+    )
+
+    try:
+        await asyncio.to_thread(
+            _send_sync, s.smtp_host, s.smtp_port, s.smtp_user, s.smtp_password, msg
+        )
+        _log.info("signup_notify_sent", to=to_addr)
+    except Exception as exc:  # noqa: BLE001
+        _log.warning("signup_notify_failed", error=str(exc))
+
+
 async def send_lead_notification(lead: dict) -> None:
     """Envia um e-mail avisando de um novo lead. No-op se SMTP não configurado."""
     s = get_settings()

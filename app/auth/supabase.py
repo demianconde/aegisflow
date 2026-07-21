@@ -6,6 +6,8 @@ provisionamento (get-or-create) do tenant e do usuário no nosso banco.
 
 from __future__ import annotations
 
+import asyncio
+
 import httpx
 from fastapi import Depends, Header, HTTPException, Request, status
 from sqlalchemy import select
@@ -14,10 +16,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.db.models import Tenant, User
 from app.db.session import get_db
+from app.notify import send_signup_notification
 from app.ratelimit import enforce_signup_ip
 from app.security.email_policy import is_disposable_email
 
 from .tokens import extract_bearer
+
+# Mantém referência às notificações em background (evita coleta pelo GC).
+_bg_tasks: set[asyncio.Task] = set()
 
 # Token sentinela do modo dev (só aceito quando dev_bypass_enabled é True).
 DEV_ACCESS_TOKEN = "dev-local-access"
@@ -98,6 +104,11 @@ async def _get_or_create_user(
     db.add(user)
     await db.commit()
     await db.refresh(user)
+
+    # Avisa o dono do novo cadastro grátis (best-effort, não bloqueia a resposta).
+    task = asyncio.create_task(send_signup_notification(email, tenant_name))
+    _bg_tasks.add(task)
+    task.add_done_callback(_bg_tasks.discard)
     return user
 
 
