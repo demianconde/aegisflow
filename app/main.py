@@ -206,6 +206,13 @@ def create_app() -> FastAPI:
             PUBLIC_DIR / "llms.txt", media_type="text/markdown; charset=utf-8"
         )
 
+    @app.get("/ads.txt", include_in_schema=False)
+    async def ads_txt() -> FileResponse:
+        # IAB ads.txt: vendedores autorizados (Google AdSense). Servido na raiz.
+        return FileResponse(
+            PUBLIC_DIR / "ads.txt", media_type="text/plain; charset=utf-8"
+        )
+
     @app.get("/sitemap.xml", include_in_schema=False)
     async def sitemap() -> PlainTextResponse:
         base = "https://aegisflow.tech"
