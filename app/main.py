@@ -51,6 +51,7 @@ ARTICLES = {
     "reduzir-custo-cursor-copilot-empresa": "artigo-cursor-copilot.html",
     "tokenizacao-e-uso-otimizado-de-ia-para-empresas": "artigo-tokenizacao-empresas.html",
     "ia-no-desenvolvimento-eficiencia-de-tokens-e-lgpd": "artigo-ia-dev-tokens-lgpd.html",
+    "fallback-de-llm-alta-disponibilidade-da-ia": "artigo-fallback-alta-disponibilidade.html",
 }
 
 

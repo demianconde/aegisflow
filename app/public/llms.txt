@@ -37,6 +37,7 @@ Fatos principais (aegisflow.tech):
 - [IA e LGPD: como usar LLMs em conformidade](https://aegisflow.tech/artigos/ia-e-lgpd-como-usar-llms-em-conformidade)
 - [Qual a melhor ferramenta de otimização de tokens de IA no Brasil](https://aegisflow.tech/artigos/melhor-ferramenta-otimizacao-de-tokens-de-ia-no-brasil)
 - [Como reduzir o custo do Cursor e do Copilot na empresa](https://aegisflow.tech/artigos/reduzir-custo-cursor-copilot-empresa)
+- [Fallback de LLM: como garantir alta disponibilidade da sua IA](https://aegisflow.tech/artigos/fallback-de-llm-alta-disponibilidade-da-ia)
 
 ## Contato
 - E-mail: contato@aegisflow.tech
