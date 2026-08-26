@@ -206,6 +206,11 @@ def create_app() -> FastAPI:
             PUBLIC_DIR / "llms.txt", media_type="text/markdown; charset=utf-8"
         )
 
+    @app.get("/treinamentosebrae", include_in_schema=False)
+    async def treinamento_sebrae_page() -> FileResponse:
+        # Página de demonstração (estilo portal de capacitação) — noindex.
+        return _html("treinamentosebrae.html")
+
     @app.get("/ads.txt", include_in_schema=False)
     async def ads_txt() -> FileResponse:
         # IAB ads.txt: vendedores autorizados (Google AdSense). Servido na raiz.
