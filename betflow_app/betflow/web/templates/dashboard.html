@@ -3,6 +3,68 @@
 {% block content %}
 <h1>Dashboard <span class="hint">— {{ division }} {{ season }}</span></h1>
 
+<div class="card">
+  <h2>🎯 Recomendações em aberto
+    <span class="hint">— melhores oportunidades do modelo agora
+      (referência: banca simulada de {{ ref_bankroll | money }})</span></h2>
+  {% if recommendations %}
+  <table>
+    <thead><tr>
+      <th>Jogo</th><th>Início</th><th>Recomendação</th><th>Confiança</th>
+      <th>Odd</th><th>Valor sugerido</th><th>Retorno potencial</th><th>EV</th>
+    </tr></thead>
+    <tbody>
+    {% for r in recommendations %}
+      <tr>
+        <td>{{ r.home_team }} x {{ r.away_team }}<br>
+            <span class="hint">{{ r.division }} · {{ r.bookmaker }}</span></td>
+        <td>{{ r.kickoff_fmt }}</td>
+        <td><strong>{{ r.selection }}</strong></td>
+        <td>{{ r.model_prob | pct }}</td>
+        <td>{{ '%.2f' % r.odd }}</td>
+        <td>{{ r.stake | money }}</td>
+        <td class="pos">+{{ r.potential | money }}</td>
+        <td class="{{ 'pos' if (r.ev or 0) >= 0 else 'neg' }}">{{ r.ev | pct }}</td>
+      </tr>
+    {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p class="hint">Nenhuma recomendação em aberto no momento. A varredura
+    automática roda sozinha
+    {% if ops.enabled %}a cada {{ ops.scan_interval_min }} min{% endif %} —
+    ou gere agora em <a href="{{ url_for('suggestions_page') }}">Sugestões</a>.</p>
+  {% endif %}
+</div>
+
+<div class="grid cols-4 mt">
+  <div class="card kpi">
+    <div class="label">Track record — banca simulada</div>
+    <div class="value">{{ sugg_stats.current_bankroll | money }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Track record — ROI</div>
+    <div class="value {{ 'pos' if (sugg_stats.roi or 0) >= 0 else 'neg' }}">
+      {{ sugg_stats.roi | pct }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Track record — acerto</div>
+    <div class="value">{{ sugg_stats.hit_rate | pct }}
+      <span class="hint">({{ sugg_stats.n_won }}/{{ sugg_stats.n_won + sugg_stats.n_lost }})</span></div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Operação 24x7</div>
+    <div class="value">{{ '🟢 ativa' if ops.enabled else '⚪ manual' }}</div>
+    <div class="hint">
+      {% if ops.last_settle_at %}última liquidação {{ ops.last_settle_at[11:16] }} UTC
+      {% elif ops.enabled %}aguardando 1º ciclo{% else %}defina BETFLOW_ODDS_API_KEY{% endif %}
+    </div>
+  </div>
+</div>
+<p class="hint">O track record considera 100% das recomendações geradas pelo
+  modelo, liquidadas automaticamente pelo placar final —
+  <a href="{{ url_for('history_page') }}">ver histórico completo →</a></p>
+
 {% if stats.initial_bankroll is none %}
 <div class="card">
   <h2>Defina sua banca inicial</h2>

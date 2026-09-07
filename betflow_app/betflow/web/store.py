@@ -579,6 +579,27 @@ def list_suggestions(status: str | None = None,
     return [dict(r) for r in rows]
 
 
+def list_open_recommendations(limit: int = 10,
+                              db_path: Path | str = DB_PATH, *,
+                              user_id: int = DEFAULT_USER_ID
+                              ) -> list[dict[str, Any]]:
+    """Sugestoes pendentes de jogos ainda nao terminados, melhores EV primeiro.
+
+    Alimenta o painel "Recomendacoes em aberto" do dashboard: o que seguir
+    agora, com retorno esperado e fracao de alocacao sugerida.
+    """
+    cutoff = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    with get_conn(db_path) as conn:
+        rows = conn.execute(
+            """SELECT * FROM suggestions
+               WHERE user_id = ? AND status = 'PENDING'
+                 AND (commence_time IS NULL OR commence_time >= ?)
+               ORDER BY ev DESC, commence_time ASC
+               LIMIT ?;""",
+            (user_id, cutoff, limit)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def suggestions_stats_by_league(db_path: Path | str = DB_PATH, *,
                                 user_id: int = DEFAULT_USER_ID,
                                 min_samples: int = 1

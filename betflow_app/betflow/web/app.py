@@ -26,6 +26,7 @@ from flask import (Flask, abort, jsonify, redirect, render_template,
                    request, url_for)
 
 from betflow.web import store
+from betflow.web import scheduler
 from betflow.web import scores
 from betflow.web.engine import engine
 from betflow.betting import suggest
@@ -170,18 +171,29 @@ def _upcoming_fixtures_for_page(leagues: list[str], days: int = 7,
 def create_app() -> Flask:
     app = Flask(__name__)
     store.init_db()
+    scheduler.start()  # operacao continua 24x7 (no-op sem chave/desativada)
 
     # ------------------------------------------------------------------
     # paginas
     # ------------------------------------------------------------------
     @app.route("/")
     def dashboard():
+        ref_bankroll = store.get_suggestions_initial_bankroll()
+        recs = store.list_open_recommendations(limit=10)
+        for r in recs:
+            r["stake"] = (r.get("stake_frac") or 0.0) * ref_bankroll
+            r["potential"] = r["stake"] * (r["odd"] - 1.0)
+            r["kickoff_fmt"] = _fmt_kickoff(r.get("commence_time") or "")
         return render_template(
             "dashboard.html",
             stats=store.stats(),
             pending=store.list_bets(status="PENDING"),
             division=engine.division,
             season=engine.season,
+            recommendations=recs,
+            sugg_stats=store.suggestions_stats(),
+            ref_bankroll=ref_bankroll,
+            ops=scheduler.status(),
         )
 
     @app.route("/predict")
@@ -445,6 +457,11 @@ def create_app() -> Flask:
     @app.route("/api/stats")
     def api_stats():
         return jsonify(store.stats())
+
+    @app.route("/api/ops-status")
+    def api_ops_status():
+        """Estado da operacao continua 24x7 (monitoramento/health)."""
+        return jsonify(scheduler.status())
 
     @app.route("/api/value-scan")
     def api_value_scan():
