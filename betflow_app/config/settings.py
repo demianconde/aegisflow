@@ -136,10 +136,57 @@ ODDS_API_SOCCER_KEYS = {
 }
 
 # ---------------------------------------------------------------------------
-# Parametros de apostas (usados nas fases futuras de value/Kelly)
+# Parametros de operacao (value / Kelly / gestao de banca)
 # ---------------------------------------------------------------------------
-MIN_EDGE = 0.03          # aposta so quando EV > 3%
+MIN_EDGE = 0.03          # aposta so quando EV > 3% (limiar ABSOLUTO base)
 KELLY_FRACTION = 0.25    # 1/4 Kelly (gestao conservadora de banca)
+
+
+def _envf(name: str, default: float) -> float:
+    """Le um float de ambiente com fallback silencioso."""
+    try:
+        return float(os.getenv(name, "").strip() or default)
+    except (TypeError, ValueError):
+        return default
+
+
+# ---------------------------------------------------------------------------
+# Politica de staking — MOTOR PRINCIPAL (Dixon-Coles)
+# ---------------------------------------------------------------------------
+# Estes parametros sao SEPARADOS dos da Boosted (metodologias independentes).
+# Ver betflow/betting/staking.py e PLANO_MELHORIA_MODELOS.md (Fases 1 e 2).
+MAIN_MIN_EDGE = _envf("BETFLOW_MAIN_MIN_EDGE", 0.03)      # edge absoluto minimo
+MAIN_REL_EDGE = _envf("BETFLOW_MAIN_REL_EDGE", 0.10)      # discordancia relativa
+MAIN_MAX_ODD = _envf("BETFLOW_MAIN_MAX_ODD", 6.0)         # teto de cotacao
+MAIN_LAMBDA = _envf("BETFLOW_MAIN_LAMBDA", 0.35)          # ancoragem ao mercado
+MAIN_MAX_REL_DISAGREE = _envf("BETFLOW_MAIN_MAX_REL_DISAGREE", 0.60)  # sanidade
+
+# Dixon-Coles interno (Fase 3): decaimento temporal + regularizacao ridge (L2).
+DC_XI = _envf("BETFLOW_DC_XI", 0.0018)
+DC_RIDGE = _envf("BETFLOW_DC_RIDGE", 0.05)   # encolhe forcas p/ media da liga
+
+# ---------------------------------------------------------------------------
+# Politica de staking — BOOSTED RESEARCH (Elo + XGBoost)
+# ---------------------------------------------------------------------------
+BOOSTED_MIN_EDGE = _envf("BOOSTED_MIN_EDGE", 0.04)
+BOOSTED_REL_EDGE = _envf("BOOSTED_REL_EDGE", 0.15)      # selecao tight mantida
+BOOSTED_MAX_ODD = _envf("BOOSTED_MAX_ODD", 4.0)         # teto de cotacao mantido
+BOOSTED_LAMBDA = _envf("BOOSTED_LAMBDA", 0.20)          # modelo mais confiavel
+BOOSTED_MAX_REL_DISAGREE = _envf("BOOSTED_MAX_REL_DISAGREE", 0.80)  # sanidade mantida
+# Dimensionamento proprio da Boosted (mais agressivo, ainda responsavel): como e o
+# modelo mais afiado, opera com Kelly e teto por entrada um pouco maiores que o
+# principal. A SELECAO segue igual (mesmas portas de qualidade/sanidade) — o que
+# muda e so o TAMANHO das entradas boas, nao o criterio de aceita-las.
+BOOSTED_KELLY = _envf("BOOSTED_KELLY", 0.30)            # vs 0.25 do principal
+BOOSTED_STAKE_CAP = _envf("BOOSTED_STAKE_CAP", 0.035)   # vs 0.02 do principal
+
+# ---------------------------------------------------------------------------
+# Gestao de banca (comum aos dois motores)
+# ---------------------------------------------------------------------------
+STAKE_CAP = _envf("BETFLOW_STAKE_CAP", 0.02)             # teto por entrada (2%)
+CONF_MIN_GAMES = _envf("BETFLOW_CONF_MIN_GAMES", 8)      # abaixo => confianca baixa
+CONF_FULL_GAMES = _envf("BETFLOW_CONF_FULL_GAMES", 30)   # a partir daqui, cheia
+CONF_FLOOR = _envf("BETFLOW_CONF_FLOOR", 0.25)           # confianca minima (>0)
 
 
 def season_code(start_year: int) -> str:

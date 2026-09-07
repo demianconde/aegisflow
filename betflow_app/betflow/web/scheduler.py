@@ -71,6 +71,11 @@ def _run_ingest() -> None:
     retrained = after > before
     if retrained:
         suggest.clear_cache()  # forca retreino (modelos) e recalibracao
+        try:
+            from betflow.research import engine as research_engine
+            research_engine.clear_cache()  # retreina tambem a Boosted Research
+        except Exception:  # noqa: BLE001
+            pass
     with _LOCK:
         _STATE["last_ingest_at"] = _utcnow_iso()
         _STATE["last_ingest_summary"] = summary
@@ -104,6 +109,28 @@ def _run_scan() -> None:
              len(result.suggestions), saved, result.quota_remaining)
 
 
+def _run_research_scan() -> None:
+    """Varredura da Boosted Research: gera sinais +EV e grava no track record
+    proprio (strategy='boosted'), para comparacao com o motor principal."""
+    from betflow.research import engine as research_engine
+    from betflow.web import store
+    from config import settings
+
+    result = research_engine.run(days=7, leagues=list(settings.TARGET_LEAGUES))
+    saved = store.save_suggestions(
+        result.suggestions, bookmaker=research_engine.BOOKMAKER,
+        days=7, leagues=list(settings.TARGET_LEAGUES),
+        quota_remaining=result.quota_remaining, strategy="boosted")
+    with _LOCK:
+        _STATE["last_research_at"] = _utcnow_iso()
+        _STATE["last_research_summary"] = {
+            "suggestions": len(result.suggestions), "saved": saved,
+            "errors": result.errors,
+        }
+    log.info("boosted scan ok: %d sinais (%d novos)",
+             len(result.suggestions), saved)
+
+
 def _run_settle() -> None:
     # import tardio para evitar import circular com betflow.web.app
     from betflow.web.app import _settle_suggestions_auto
@@ -128,6 +155,10 @@ def _loop(scan_interval: float, settle_interval: float) -> None:
                 next_scan = now + scan_interval
                 _run_ingest()   # atualiza cache de resultados + retreina
                 _run_scan()
+                try:
+                    _run_research_scan()  # segunda linha (Boosted Research)
+                except Exception as exc:  # noqa: BLE001
+                    log.warning("boosted scan falhou: %s", exc)
         except Exception as exc:  # noqa: BLE001 - o loop nunca pode morrer
             with _LOCK:
                 _STATE["last_error"] = f"{_utcnow_iso()} {exc}"

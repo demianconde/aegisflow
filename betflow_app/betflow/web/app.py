@@ -21,6 +21,7 @@ from __future__ import annotations
 
 import time
 from typing import Any
+from urllib.parse import quote
 
 from flask import (Flask, abort, jsonify, redirect, render_template,
                    request, url_for)
@@ -181,7 +182,7 @@ def create_app() -> Flask:
     @app.route("/")
     def dashboard():
         ref_bankroll = store.get_suggestions_initial_bankroll()
-        recs = store.list_open_recommendations(limit=10)
+        recs = store.list_open_recommendations(limit=10, strategy="main")
         for r in recs:
             r["stake"] = (r.get("stake_frac") or 0.0) * ref_bankroll
             r["potential"] = r["stake"] * (r["odd"] - 1.0)
@@ -196,7 +197,7 @@ def create_app() -> Flask:
             division=engine.division,
             season=engine.season,
             recommendations=recs,
-            sugg_stats=store.suggestions_stats(),
+            sugg_stats=store.suggestions_stats(strategy="main"),
             ref_bankroll=ref_bankroll,
             ops=ops,
         )
@@ -312,22 +313,30 @@ def create_app() -> Flask:
         recommendations = []
         try:
             recommendations = store.list_open_recommendations_filtered(
-                leagues=selected_leagues, days=days, today_only=today_only)
+                leagues=selected_leagues, days=days, today_only=today_only,
+                strategy="main")
             for r in recommendations:
                 r["commence_time_fmt"] = _fmt_kickoff(r.get("commence_time") or "")
         except Exception as exc:  # noqa: BLE001
             error = f"Falha ao carregar recomendacoes: {exc}"
 
         ref_bankroll = store.get_suggestions_initial_bankroll()
-        sugg_stats = store.suggestions_stats()
+        # banca pessoal do usuario (definida no dashboard); e a base do valor
+        # pre-preenchido em cada cartao. Cai para a referencia se nao definida.
+        personal_bankroll = store.get_initial_bankroll() or ref_bankroll
+        sugg_stats = store.suggestions_stats(strategy="main")
         ops = scheduler.status()
         if ops.get("last_scan_at"):
             ops["last_scan_fmt"] = _fmt_kickoff(ops["last_scan_at"])[6:]
+        # URL de retorno preservando os filtros (evita re-filtrar apos registrar)
+        back_url = url_for("suggestions_page", league=selected_leagues,
+                           days=days, today=1 if today_only else 0)
         return render_template(
             "suggestions.html", recommendations=recommendations, error=error,
             days=days, today_only=today_only,
             bankroll=(sugg_stats.get("current_bankroll") or ref_bankroll),
-            ref_bankroll=ref_bankroll, ops=ops,
+            ref_bankroll=ref_bankroll, personal_bankroll=personal_bankroll,
+            back_url=back_url, ops=ops,
             bookmaker=settings.PREFERRED_BOOKMAKER,
             min_edge=settings.MIN_EDGE, kelly=settings.KELLY_FRACTION,
             selected_leagues=selected_leagues,
@@ -342,17 +351,37 @@ def create_app() -> Flask:
         league_filter = request.args.get("league", "").strip().upper()
         status_filter = request.args.get("status", "").strip().upper()
         stats = store.suggestions_stats(
-            division=league_filter if league_filter else None)
+            division=league_filter if league_filter else None, strategy="main")
         suggestions = store.list_suggestions(
             division=league_filter if league_filter else None,
-            status=status_filter if status_filter else None)
-        by_league = store.suggestions_stats_by_league()
+            status=status_filter if status_filter else None, strategy="main")
+        by_league = store.suggestions_stats_by_league(strategy="main")
         return render_template("history.html", stats=stats,
                                suggestions=suggestions, by_league=by_league,
                                league_filter=league_filter,
                                status_filter=status_filter,
                                league_names=settings.LEAGUES,
                                bookmaker=settings.PREFERRED_BOOKMAKER)
+
+    @app.route("/comparativo")
+    def compare_page():
+        """Compara, na mesma regua, o motor principal x a Boosted Research."""
+        main_stats = store.suggestions_stats(strategy="main")
+        boosted_stats = store.suggestions_stats(strategy="boosted")
+        main_open = store.list_open_recommendations(limit=8, strategy="main")
+        boosted_open = store.list_open_recommendations(limit=8, strategy="boosted")
+        ref_bankroll = store.get_suggestions_initial_bankroll()
+        for lst in (main_open, boosted_open):
+            for r in lst:
+                r["kickoff_fmt"] = _fmt_kickoff(r.get("commence_time") or "")
+                r["stake"] = (r.get("stake_frac") or 0.0) * ref_bankroll
+        return render_template(
+            "compare.html",
+            main_stats=main_stats, boosted_stats=boosted_stats,
+            main_open=main_open, boosted_open=boosted_open,
+            main_by_league=store.suggestions_stats_by_league(strategy="main"),
+            boosted_by_league=store.suggestions_stats_by_league(strategy="boosted"),
+            league_names=settings.LEAGUES, ref_bankroll=ref_bankroll)
 
     @app.route("/settle-suggestions", methods=["POST"])
     def settle_suggestions():
@@ -407,6 +436,46 @@ def create_app() -> Flask:
         except (KeyError, ValueError) as exc:
             abort(400, f"aposta invalida: {exc}")
         return redirect(request.form.get("next") or url_for("bets_page"))
+
+    @app.route("/bet/add-batch", methods=["POST"])
+    def add_bet_batch():
+        """Registra varios aportes de uma vez (cartoes selecionados na pagina
+        de recomendacoes) e volta para a mesma pagina/filtro."""
+        f = request.form
+        picks = f.getlist("pick")
+        added = 0
+        errors = 0
+        for i in picks:
+            try:
+                bet = store.BetInput(
+                    home_team=f[f"home_team_{i}"],
+                    away_team=f[f"away_team_{i}"],
+                    market=f[f"market_{i}"],
+                    selection=f.get(f"selection_{i}", f[f"market_{i}"]),
+                    odd=float(f[f"odd_{i}"]), stake=float(f[f"stake_{i}"]),
+                    division=f.get(f"division_{i}") or None,
+                    model_prob=_optfloat(f.get(f"model_prob_{i}")),
+                    ev=_optfloat(f.get(f"ev_{i}")),
+                    edge=_optfloat(f.get(f"edge_{i}")),
+                    sport_key=f.get(f"sport_key_{i}") or None,
+                    event_id=f.get(f"event_id_{i}") or None,
+                    commence_time=f.get(f"commence_time_{i}") or None,
+                )
+                store.add_bet(bet)
+                added += 1
+            except (KeyError, ValueError):
+                errors += 1
+        if added and not errors:
+            msg = f"✅ {added} aporte(s) registrado(s)."
+        elif added:
+            msg = f"✅ {added} registrado(s), {errors} com erro."
+        elif errors:
+            msg = f"⚠️ Nenhum aporte registrado ({errors} com erro)."
+        else:
+            msg = "Selecione ao menos um cartão para registrar."
+        nxt = f.get("next") or url_for("suggestions_page")
+        sep = "&" if "?" in nxt else "?"
+        return redirect(f"{nxt}{sep}flash={quote(msg)}")
 
     @app.route("/bet/<int:bet_id>/settle", methods=["POST"])
     def settle_bet(bet_id: int):

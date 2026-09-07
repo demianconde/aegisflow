@@ -6,9 +6,9 @@
 
 <div class="card" style="border-left:3px solid var(--accent, #6c7bf7)">
   <strong>Como usar:</strong> o modelo roda sozinho a cada 3&nbsp;horas para
-  todas as ligas e salva as recomendações aqui. Você só <b>filtra</b> abaixo e
-  registra os aportes. Cada cartão mostra <b>em quem aportar</b>, a
-  <b>alocação sugerida</b> e o <b>retorno potencial</b>.
+  todas as ligas e salva as recomendações aqui. Ajuste o <b>valor disponível</b>,
+  <b>marque</b> os cartões que quiser e clique em <b>Registrar selecionados</b>
+  para lançar todos de uma vez — sem sair desta página.
   {% if ops.last_scan_at %}
   <div class="hint" style="margin-top:6px">🔄 Última atualização automática:
     {{ ops.last_scan_fmt }} (Brasília).</div>
@@ -43,12 +43,6 @@
         <option value="1" {{ 'selected' if today_only else '' }}>sim</option>
       </select>
     </div>
-    <div class="filter-field">
-      <label>Valor disponível total</label>
-      <input type="number" id="valorTotal" min="0" step="0.01"
-             value="{{ ref_bankroll }}" oninput="recalcPessoal()">
-      <div class="hint">Escala o valor sugerido para a sua realidade.</div>
-    </div>
     <div class="filter-field filter-actions">
       <label>&nbsp;</label>
       <button type="submit">Filtrar</button>
@@ -70,50 +64,105 @@
 </div>
 
 {% if recommendations %}
-<div class="sugg-grid mt" id="recGrid" data-ref="{{ ref_bankroll }}">
-  {% for s in recommendations %}
-  <div class="card sugg">
-    <div class="sugg-head">
-      <span class="league-pill">{{ s.division }}</span>
-      <span class="ko">{{ s.commence_time_fmt }}</span>
-    </div>
-    <div class="sugg-match">{{ s.home_team }} <span class="x">×</span> {{ s.away_team }}</div>
-    <div class="sugg-rec">🎯 Aportar em <strong>{{ s.selection }}</strong>
-      <span class="hint">· {{ s.bookmaker }}</span></div>
+<form method="post" action="{{ url_for('add_bet_batch') }}" id="batchForm">
+  <input type="hidden" name="next" value="{{ back_url }}">
 
-    <div class="sugg-metrics">
-      <div><span class="m-label">Cotação</span><b>{{ '%.2f'|format(s.odd) }}</b></div>
-      <div><span class="m-label">Prob. modelo</span><b>{{ (s.model_prob*100)|round(1) }}%</b></div>
-      <div><span class="m-label">Retorno esp.</span><b class="pos">+{{ (s.ev*100)|round(1) }}%</b></div>
-      <div><span class="m-label">Alocação sug.</span><b>{{ (s.stake_frac*100)|round(2) }}%</b></div>
-      <div><span class="m-label">Valor sugerido</span>
-        <b>{{ (s.stake_frac * bankroll) | money }}</b></div>
-      <div><span class="m-label">Valor pessoal</span>
-        <b class="pessoal" data-stake="{{ s.stake_frac * ref_bankroll }}"
-           data-odd="{{ s.odd }}">—</b></div>
+  <div class="card batch-bar" data-ref="{{ personal_bankroll }}">
+    <div class="batch-field">
+      <label>Valor disponível total</label>
+      <input type="number" id="valorTotal" min="0" step="0.01"
+             value="{{ personal_bankroll | round(2) }}" oninput="recalc()">
+      <div class="hint">Cada cartão é preenchido com sua fatia proporcional.</div>
     </div>
-
-    <form method="post" action="{{ url_for('add_bet') }}" class="sugg-form">
-      <input type="hidden" name="home_team" value="{{ s.home_team }}">
-      <input type="hidden" name="away_team" value="{{ s.away_team }}">
-      <input type="hidden" name="market" value="{{ s.market }}">
-      <input type="hidden" name="selection" value="{{ s.home_team }} x {{ s.away_team }}: {{ s.selection }}">
-      <input type="hidden" name="odd" value="{{ s.odd }}">
-      <input type="hidden" name="division" value="{{ s.division }}">
-      <input type="hidden" name="model_prob" value="{{ s.model_prob }}">
-      <input type="hidden" name="ev" value="{{ s.ev }}">
-      <input type="hidden" name="edge" value="{{ s.edge }}">
-      <input type="hidden" name="sport_key" value="{{ s.sport_key }}">
-      <input type="hidden" name="event_id" value="{{ s.event_id }}">
-      <input type="hidden" name="commence_time" value="{{ s.commence_time }}">
-      <input type="hidden" name="next" value="{{ url_for('bets_page') }}">
-      <input type="number" step="0.01" name="stake" required
-             value="{{ (s.stake_frac * bankroll) | round(2) }}" placeholder="valor">
-      <button type="submit">Registrar aporte</button>
-    </form>
+    <div class="batch-summary">
+      <div><span class="m-label">Selecionados</span><b id="selCount">0</b></div>
+      <div><span class="m-label">Total a aportar</span><b id="selTotal">R$ 0,00</b></div>
+      <div><span class="m-label">Retorno potencial</span>
+        <b class="pos" id="selReturn">R$ 0,00</b></div>
+    </div>
+    <div class="batch-actions">
+      <button type="button" class="ghost" id="toggleAll"
+              onclick="toggleAll()">Selecionar todos</button>
+      <button type="submit" id="batchSubmit" disabled>Registrar selecionados</button>
+    </div>
   </div>
-  {% endfor %}
-</div>
+
+  <div class="sugg-grid mt" id="recGrid">
+    {% for s in recommendations %}
+    {% set i = loop.index0 %}
+    <div class="card sugg" onclick="cardClick(event, {{ i }})">
+      <div class="sugg-head">
+        <label class="sugg-pick" onclick="event.stopPropagation()">
+          <input type="checkbox" name="pick" value="{{ i }}" id="pick_{{ i }}"
+                 class="pick-box" onchange="onPick()">
+          <span class="league-pill">{{ s.division }}</span>
+        </label>
+        <span class="ko">{{ s.commence_time_fmt }}</span>
+      </div>
+      <div class="sugg-match">{{ s.home_team }} <span class="x">×</span> {{ s.away_team }}</div>
+      <div class="sugg-rec">🎯 Aportar em <strong>{{ s.selection }}</strong>
+        <span class="hint">· {{ s.bookmaker }}</span></div>
+
+      {% set conf = s.confidence if s.confidence is not none else none %}
+      {% if conf is not none %}
+        {% if conf >= 0.66 %}{% set clabel, cclass = 'alta', 'conf-high' %}
+        {% elif conf >= 0.4 %}{% set clabel, cclass = 'média', 'conf-mid' %}
+        {% else %}{% set clabel, cclass = 'baixa', 'conf-low' %}{% endif %}
+      {% endif %}
+
+      <div class="sugg-probs">
+        <div class="prob-block">
+          <span class="m-label" title="Chance que o modelo atribui a ESTE resultado (já ajustada ao mercado). Não é a chance de o time ser melhor — é a probabilidade deste placar/resultado sair.">Chance estimada</span>
+          <b>{{ (s.model_prob*100)|round(1) }}%</b>
+        </div>
+        <div class="prob-vs">vs</div>
+        <div class="prob-block">
+          <span class="m-label" title="Probabilidade justa embutida na cotação da casa, já sem a margem (devig via Shin). É o 'consenso do mercado'.">Consenso do mercado</span>
+          <b>{% if s.fair_prob is not none %}{{ (s.fair_prob*100)|round(1) }}%{% else %}{{ (s.implied_prob*100)|round(1) if s.implied_prob is not none else '—' }}%{% endif %}</b>
+        </div>
+        {% if conf is not none %}
+        <div class="prob-block conf-cell">
+          <span class="m-label" title="O quanto confiamos nesta leitura: cai com poucos jogos na base, jogos muito indefinidos ou discordância grande com o mercado. Reduz o tamanho do aporte sugerido.">Confiança</span>
+          <span class="conf-badge {{ cclass }}">{{ clabel }} · {{ (conf*100)|round(0)|int }}%</span>
+        </div>
+        {% endif %}
+      </div>
+
+      <div class="sugg-metrics">
+        <div><span class="m-label" title="Cotação decimal ofertada pela casa. Retorno bruto = valor × cotação.">Cotação</span><b>{{ '%.2f'|format(s.odd) }}</b></div>
+        <div><span class="m-label" title="Retorno esperado por unidade aportada = chance estimada × cotação − 1. Positivo indica vantagem estatística de longo prazo (não garantia por entrada).">Retorno esperado</span><b class="pos">+{{ (s.ev*100)|round(1) }}%</b></div>
+        <div><span class="m-label" title="Fração da banca sugerida (Kelly fracionário × confiança, com teto). Quanto do capital alocar nesta entrada.">Alocação sug.</span><b>{{ (s.stake_frac*100)|round(2) }}%</b></div>
+        <div><span class="m-label">Valor sugerido</span>
+          <b>{{ (s.stake_frac * bankroll) | money }}</b></div>
+        <div><span class="m-label">Retorno pot.</span>
+          <b class="pos leg-return">—</b></div>
+      </div>
+
+      <div class="sugg-form">
+        <span class="m-label" style="align-self:center">Seu aporte</span>
+        <input type="number" step="0.01" min="0" name="stake_{{ i }}"
+               class="stake-input" data-frac="{{ s.stake_frac }}"
+               data-odd="{{ s.odd }}"
+               value="{{ (s.stake_frac * personal_bankroll) | round(2) }}"
+               oninput="onStakeEdit()" onclick="event.stopPropagation()">
+      </div>
+
+      <input type="hidden" name="home_team_{{ i }}" value="{{ s.home_team }}">
+      <input type="hidden" name="away_team_{{ i }}" value="{{ s.away_team }}">
+      <input type="hidden" name="market_{{ i }}" value="{{ s.market }}">
+      <input type="hidden" name="selection_{{ i }}" value="{{ s.home_team }} x {{ s.away_team }}: {{ s.selection }}">
+      <input type="hidden" name="odd_{{ i }}" value="{{ s.odd }}">
+      <input type="hidden" name="division_{{ i }}" value="{{ s.division }}">
+      <input type="hidden" name="model_prob_{{ i }}" value="{{ s.model_prob }}">
+      <input type="hidden" name="ev_{{ i }}" value="{{ s.ev }}">
+      <input type="hidden" name="edge_{{ i }}" value="{{ s.edge }}">
+      <input type="hidden" name="sport_key_{{ i }}" value="{{ s.sport_key }}">
+      <input type="hidden" name="event_id_{{ i }}" value="{{ s.event_id }}">
+      <input type="hidden" name="commence_time_{{ i }}" value="{{ s.commence_time }}">
+    </div>
+    {% endfor %}
+  </div>
+</form>
 {% else %}
 <div class="card hint mt">Nenhuma recomendação de valor na janela/ligas
   selecionadas. Amplie a janela ou aguarde a próxima atualização automática
@@ -121,22 +170,61 @@
 {% endif %}
 
 <script>
-  function recalcPessoal() {
-    var grid = document.getElementById('recGrid');
-    if (!grid) return;
-    var ref = parseFloat(grid.getAttribute('data-ref')) || 0;
+  var BRL = new Intl.NumberFormat('pt-BR',
+    {minimumFractionDigits: 2, maximumFractionDigits: 2});
+  function money(v) { return 'R$ ' + BRL.format(v || 0); }
+
+  // recalcula o valor de cada cartao a partir do "valor disponivel total"
+  function recalc() {
+    var bar = document.querySelector('.batch-bar');
     var total = parseFloat(document.getElementById('valorTotal').value);
-    var fmt = new Intl.NumberFormat('pt-BR',
-      {minimumFractionDigits: 2, maximumFractionDigits: 2});
-    grid.querySelectorAll('.pessoal').forEach(function (el) {
-      if (!ref || isNaN(total)) { el.textContent = '—'; return; }
-      var stake = parseFloat(el.getAttribute('data-stake')) || 0;
-      var pessoal = stake * total / ref;
-      el.textContent = 'R$ ' + fmt.format(pessoal);
-      el.title = 'Retorno potencial pessoal: +' +
-        fmt.format(pessoal * ((parseFloat(el.getAttribute('data-odd')) || 1) - 1));
+    document.querySelectorAll('.stake-input').forEach(function (inp) {
+      var frac = parseFloat(inp.getAttribute('data-frac')) || 0;
+      if (!isNaN(total)) inp.value = (frac * total).toFixed(2);
     });
+    updateSummary();
   }
-  recalcPessoal();
+
+  // atualiza retorno por cartao + o resumo (selecionados/total/retorno)
+  function updateSummary() {
+    var count = 0, total = 0, ret = 0;
+    document.querySelectorAll('.sugg').forEach(function (card) {
+      var box = card.querySelector('.pick-box');
+      var inp = card.querySelector('.stake-input');
+      var odd = parseFloat(inp.getAttribute('data-odd')) || 1;
+      var stake = parseFloat(inp.value) || 0;
+      var legRet = card.querySelector('.leg-return');
+      if (legRet) legRet.textContent = '+' + money(stake * (odd - 1));
+      card.classList.toggle('picked', box.checked);
+      if (box.checked) { count++; total += stake; ret += stake * (odd - 1); }
+    });
+    document.getElementById('selCount').textContent = count;
+    document.getElementById('selTotal').textContent = money(total);
+    document.getElementById('selReturn').textContent = '+' + money(ret);
+    document.getElementById('batchSubmit').disabled = count === 0;
+  }
+
+  function onPick() { updateSummary(); }
+  function onStakeEdit() { updateSummary(); }
+
+  // clicar em qualquer parte do cartao (menos no campo de valor/checkbox)
+  // alterna a selecao
+  function cardClick(ev, i) {
+    var box = document.getElementById('pick_' + i);
+    if (!box) return;
+    box.checked = !box.checked;
+    updateSummary();
+  }
+
+  function toggleAll() {
+    var boxes = document.querySelectorAll('.pick-box');
+    var allOn = Array.prototype.every.call(boxes, function (b) { return b.checked; });
+    boxes.forEach(function (b) { b.checked = !allOn; });
+    document.getElementById('toggleAll').textContent =
+      allOn ? 'Selecionar todos' : 'Limpar seleção';
+    updateSummary();
+  }
+
+  recalc();
 </script>
 {% endblock %}

@@ -86,9 +86,12 @@ CREATE TABLE IF NOT EXISTS suggestions (
     selection     TEXT NOT NULL,
     side          TEXT,               -- home/draw/away
     bookmaker     TEXT,
+    strategy      TEXT NOT NULL DEFAULT 'main',  -- 'main' | 'boosted'
     odd           REAL NOT NULL,
-    model_prob    REAL,
-    implied_prob  REAL,
+    model_prob    REAL,               -- prob. usada (ancorada ao mercado)
+    implied_prob  REAL,               -- 1/cotacao (crua)
+    fair_prob     REAL,               -- prob. justa do mercado (Shin, sem margem)
+    confidence    REAL,               -- fator de confianca aplicado ao Kelly [0..1]
     ev            REAL,
     edge          REAL,
     source        TEXT,               -- modelo | mercado
@@ -99,7 +102,7 @@ CREATE TABLE IF NOT EXISTS suggestions (
     pnl           REAL NOT NULL DEFAULT 0.0,
     auto_settled  INTEGER NOT NULL DEFAULT 0,
     settled_at    TEXT,
-    UNIQUE(user_id, event_id, market) ON CONFLICT IGNORE
+    UNIQUE(user_id, strategy, event_id, market) ON CONFLICT IGNORE
 );
 
 CREATE TABLE IF NOT EXISTS suggestions_scans (
@@ -158,6 +161,9 @@ _MIGRATIONS = [
     "ALTER TABLE bets ADD COLUMN auto_settled INTEGER NOT NULL DEFAULT 0",
     "ALTER TABLE suggestions ADD COLUMN home_score INTEGER",
     "ALTER TABLE suggestions ADD COLUMN away_score INTEGER",
+    "ALTER TABLE suggestions ADD COLUMN strategy TEXT NOT NULL DEFAULT 'main'",
+    "ALTER TABLE suggestions ADD COLUMN fair_prob REAL",
+    "ALTER TABLE suggestions ADD COLUMN confidence REAL",
 ]
 
 
@@ -184,9 +190,12 @@ CREATE TABLE IF NOT EXISTS suggestions (
     selection     TEXT NOT NULL,
     side          TEXT,
     bookmaker     TEXT,
+    strategy      TEXT NOT NULL DEFAULT 'main',
     odd           REAL NOT NULL,
     model_prob    REAL,
     implied_prob  REAL,
+    fair_prob     REAL,
+    confidence    REAL,
     ev            REAL,
     edge          REAL,
     source        TEXT,
@@ -197,7 +206,7 @@ CREATE TABLE IF NOT EXISTS suggestions (
     pnl           REAL NOT NULL DEFAULT 0.0,
     auto_settled  INTEGER NOT NULL DEFAULT 0,
     settled_at    TEXT,
-    UNIQUE(user_id, event_id, market) ON CONFLICT IGNORE
+    UNIQUE(user_id, strategy, event_id, market) ON CONFLICT IGNORE
 );
 
 CREATE TABLE IF NOT EXISTS suggestions_scans (
@@ -520,6 +529,8 @@ class SuggestionInput:
     bookmaker: str | None = None
     model_prob: float | None = None
     implied_prob: float | None = None
+    fair_prob: float | None = None
+    confidence: float | None = None
     ev: float | None = None
     edge: float | None = None
     source: str | None = None
@@ -552,6 +563,7 @@ def save_suggestions(suggestions: list[dict[str, Any]],
                        quota_remaining: int | None = None,
                        db_path: Path | str = DB_PATH,
                        *,
+                       strategy: str = "main",
                        user_id: int = DEFAULT_USER_ID) -> int:
     """Persiste as sugestoes geradas em um scan.
 
@@ -576,15 +588,17 @@ def save_suggestions(suggestions: list[dict[str, Any]],
                 """INSERT INTO suggestions
                    (user_id, generated_at, division, sport_key, event_id,
                     commence_time, home_team, away_team, market, selection,
-                    side, bookmaker, odd, model_prob, implied_prob, ev, edge,
-                    source, stake_frac, home_score, away_score, status, pnl)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDING',0.0)
-                   ON CONFLICT(user_id, event_id, market) DO NOTHING;""",
+                    side, bookmaker, strategy, odd, model_prob, implied_prob,
+                    fair_prob, confidence, ev, edge, source, stake_frac,
+                    home_score, away_score, status, pnl)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDING',0.0)
+                   ON CONFLICT(user_id, strategy, event_id, market) DO NOTHING;""",
                 (user_id, scanned_at, division,
                  s.get("sport_key"), event_id, s.get("commence_time"),
                  s.get("home"), s.get("away"), s.get("market"),
-                 s.get("selection"), s.get("side"), bookmaker,
+                 s.get("selection"), s.get("side"), bookmaker, strategy,
                  float(s["odd"]), s.get("prob"), s.get("implied"),
+                 s.get("fair_prob"), s.get("confidence"),
                  s.get("ev"), s.get("edge"), s.get("source"),
                  s.get("stake_frac"), None, None),
             )
@@ -605,6 +619,7 @@ def save_suggestions(suggestions: list[dict[str, Any]],
 def list_suggestions(status: str | None = None,
                      division: str | None = None,
                      db_path: Path | str = DB_PATH, *,
+                     strategy: str | None = None,
                      user_id: int = DEFAULT_USER_ID,
                      order: str = "generated_at DESC, id DESC"
                      ) -> list[dict[str, Any]]:
@@ -617,6 +632,9 @@ def list_suggestions(status: str | None = None,
     if division:
         q += " AND division = ?"
         params.append(division.upper())
+    if strategy:
+        q += " AND strategy = ?"
+        params.append(strategy)
     q += f" ORDER BY {order};"
     with get_conn(db_path) as conn:
         rows = conn.execute(q, tuple(params)).fetchall()
@@ -625,22 +643,26 @@ def list_suggestions(status: str | None = None,
 
 def list_open_recommendations(limit: int = 10,
                               db_path: Path | str = DB_PATH, *,
+                              strategy: str | None = None,
                               user_id: int = DEFAULT_USER_ID
                               ) -> list[dict[str, Any]]:
     """Sugestoes pendentes de jogos ainda nao terminados, melhores EV primeiro.
 
     Alimenta o painel "Recomendacoes em aberto" do dashboard: o que seguir
-    agora, com retorno esperado e fracao de alocacao sugerida.
+    agora, com retorno esperado e fracao de alocacao sugerida. `strategy` isola
+    a linha de predicao ('main'|'boosted').
     """
     cutoff = datetime.now(timezone.utc).isoformat(timespec="seconds")
+    q = ("SELECT * FROM suggestions WHERE user_id = ? AND status = 'PENDING' "
+         "AND (commence_time IS NULL OR commence_time >= ?)")
+    params: list[Any] = [user_id, cutoff]
+    if strategy:
+        q += " AND strategy = ?"
+        params.append(strategy)
+    q += " ORDER BY ev DESC, commence_time ASC LIMIT ?;"
+    params.append(limit)
     with get_conn(db_path) as conn:
-        rows = conn.execute(
-            """SELECT * FROM suggestions
-               WHERE user_id = ? AND status = 'PENDING'
-                 AND (commence_time IS NULL OR commence_time >= ?)
-               ORDER BY ev DESC, commence_time ASC
-               LIMIT ?;""",
-            (user_id, cutoff, limit)).fetchall()
+        rows = conn.execute(q, tuple(params)).fetchall()
     return [dict(r) for r in rows]
 
 
@@ -648,16 +670,20 @@ def list_open_recommendations_filtered(
         leagues: list[str] | None = None, days: int | None = None,
         today_only: bool = False, limit: int = 300,
         db_path: Path | str = DB_PATH, *,
+        strategy: str | None = None,
         user_id: int = DEFAULT_USER_ID) -> list[dict[str, Any]]:
     """Recomendacoes pendentes de jogos futuros, filtradas por liga/janela.
 
     Le APENAS do banco (populado pelo scan automatico de 3 em 3 horas); nao
-    consome cota de API. Ordena pelo maior EV.
+    consome cota de API. Ordena pelo maior EV. `strategy` isola a linha.
     """
     now = datetime.now(timezone.utc)
     q = ("SELECT * FROM suggestions WHERE user_id = ? AND status = 'PENDING' "
          "AND (commence_time IS NULL OR commence_time >= ?)")
     params: list[Any] = [user_id, now.isoformat(timespec="seconds")]
+    if strategy:
+        q += " AND strategy = ?"
+        params.append(strategy)
     if today_only:
         end = now.replace(hour=23, minute=59, second=59, microsecond=0)
         q += " AND commence_time <= ?"
@@ -679,12 +705,11 @@ def list_open_recommendations_filtered(
 
 def suggestions_stats_by_league(db_path: Path | str = DB_PATH, *,
                                 user_id: int = DEFAULT_USER_ID,
+                                strategy: str | None = None,
                                 min_samples: int = 1
                                 ) -> list[dict[str, Any]]:
     """Taxa de acerto e P&L por campeonato no track record."""
-    with get_conn(db_path) as conn:
-        rows = conn.execute(
-            """SELECT
+    q = ("""SELECT
                  division,
                  COUNT(*)                                          AS total,
                  SUM(CASE WHEN status='PENDING' THEN 1 ELSE 0 END) AS pending,
@@ -694,10 +719,14 @@ def suggestions_stats_by_league(db_path: Path | str = DB_PATH, *,
                  COALESCE(SUM(pnl), 0.0)                           AS pnl,
                  COALESCE(SUM(CASE WHEN status IN ('WON','LOST')
                                    THEN ABS(pnl) ELSE 0 END), 0.0) AS turnover
-               FROM suggestions WHERE user_id = ?
-               GROUP BY division
-               ORDER BY total DESC;""", (user_id,)
-        ).fetchall()
+               FROM suggestions WHERE user_id = ?""")
+    params: list[Any] = [user_id]
+    if strategy:
+        q += " AND strategy = ?"
+        params.append(strategy)
+    q += " GROUP BY division ORDER BY total DESC;"
+    with get_conn(db_path) as conn:
+        rows = conn.execute(q, tuple(params)).fetchall()
 
     result: list[dict[str, Any]] = []
     for r in rows:
@@ -730,12 +759,14 @@ def suggestions_stats_by_league(db_path: Path | str = DB_PATH, *,
 def suggestions_stats(db_path: Path | str = DB_PATH, *,
                        user_id: int = DEFAULT_USER_ID,
                        division: str | None = None,
+                       strategy: str | None = None,
                        start_bankroll: float = 1000.0
                        ) -> dict[str, Any]:
     """Metricas de desempenho do track record de sugestoes.
 
     Calcula P&L, ROI, yield, taxa de acerto, drawdown maximo, serie temporal
     da banca, e medias de edge/EV das sugestoes ganhadoras/perdedoras.
+    Se `strategy` for informado, isola a linha de predicao ('main'|'boosted').
     """
     initial = start_bankroll
     params: list[Any] = [user_id]
@@ -743,6 +774,9 @@ def suggestions_stats(db_path: Path | str = DB_PATH, *,
     if division:
         where += " AND division = ?"
         params.append(division.upper())
+    if strategy:
+        where += " AND strategy = ?"
+        params.append(strategy)
 
     with get_conn(db_path) as conn:
         agg = conn.execute(

@@ -137,9 +137,11 @@ def ingest_league(code: str, *, deep: bool = False) -> int:
             deep = True
     except Exception:  # noqa: BLE001
         pass
+    # Backfill enxuto p/ caber no plano free do SofaScore (500 req/mes):
+    # deep = 2 temporadas x 8 paginas x 5 ligas ~= 80 req (+ recentes).
     rows = _from_sofascore(code, cfg,
-                           seasons=3 if deep else 2,
-                           pages=16 if deep else 4)
+                           seasons=2 if deep else 1,
+                           pages=8 if deep else 3)
     # Complemento com os placares recentes (o que a SofaScore nao trouxe).
     rows += _from_odds_api(code, cfg)
     if not rows:

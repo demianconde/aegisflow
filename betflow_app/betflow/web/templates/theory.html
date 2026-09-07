@@ -12,23 +12,83 @@
   mensurável.</p>
 </div>
 
-<h2>1. Arquitetura de duas fontes</h2>
+<h2>1. Bases de dados</h2>
 <div class="grid cols-2">
   <div class="card">
-    <h3>📚 Fonte histórica</h3>
-    <p><code>football-data.co.uk</code> fornece CSVs gratuitos com resultados,
-    gols, escanteios, cartões e odds de fechamento. Usamos esses dados para
-    <strong>treinar e validar</strong> os modelos estatísticos.</p>
+    <h3>🗄️ Data Warehouse (Postgres / Supabase)</h3>
+    <p>O coração dos dados é um cache histórico de partidas (tabela
+    <code>matches</code>) no <strong>PostgreSQL do Supabase</strong>, com
+    milhares de jogos por liga (resultados, gols e datas). Ele
+    <strong>persiste entre deploys e máquinas</strong> e é a fonte primária de
+    treino dos modelos — hoje com ~7.800 jogos das 5 ligas acompanhadas.</p>
   </div>
   <div class="card">
-    <h3>⚡ Fonte de operação</h3>
-    <p>A <strong>The Odds API</strong> entrega odds ao vivo/futuras de várias
-    casas (incluindo Betano). O motor compara essas odds com as probabilidades
-    do modelo para encontrar valor em tempo real.</p>
+    <h3>🔌 Fontes de ingestão</h3>
+    <p>O warehouse é alimentado automaticamente, de 3 em 3 horas, por duas
+    APIs que se complementam: a <strong>SofaScore</strong> (histórico em volume,
+    várias temporadas) e a <strong>The Odds API</strong> (resultados recentes e
+    cotações ao vivo). Se uma falha, a outra cobre. O
+    <code>football-data.co.uk</code> permanece como fallback legado.</p>
   </div>
 </div>
 
-<h2>2. Modelos estatísticos</h2>
+<h2>2. As duas linhas de predição</h2>
+<p class="hint">O sistema mantém <strong>dois motores independentes</strong> que
+avaliam os mesmos jogos e são medidos na mesma régua (banca simulada de
+R$ 1.000, 1/4 Kelly). A aba <em>Comparativo</em> mostra o desempenho lado a
+lado — assim aprendemos qual abordagem generaliza melhor.</p>
+<div class="grid cols-2">
+  <div class="card theory-section">
+    <h3>🎯 Motor principal — Dixon-Coles</h3>
+    <p><strong>O quê:</strong> modelo estatístico clássico de Poisson bivariado
+    (detalhado abaixo). A partir do histórico de placares, estima uma
+    <strong>força de ataque e de defesa</strong> para cada time e, com isso, a
+    distribuição de gols de cada lado — de onde saem as probabilidades de 1X2,
+    Over/Under e ambas marcam.</p>
+    <p><strong>Como aprende:</strong> jogos recentes pesam mais (decaimento
+    temporal) e um parâmetro ρ corrige a dependência dos placares baixos. Em
+    seguida, uma etapa de <strong>calibração</strong> (Platt/isotônica) ajusta as
+    probabilidades usando o próprio histórico já liquidado, sem olhar o futuro.</p>
+    <p><strong>Perfil:</strong> estável, interpretável e bom com poucos dados. É
+    a linha de base sólida — a régua contra a qual medimos a segunda.</p>
+  </div>
+  <div class="card theory-section">
+    <h3>🧪 Boosted Research — Ensemble</h3>
+    <p><strong>O quê:</strong> uma segunda vertente, inspirada em fundos
+    quantitativos, que combina dois componentes. Um <strong>Elo bivariado
+    dinâmico</strong> atualiza a força de ataque/defesa de cada time rodada a
+    rodada, pelo gradiente de Poisson e ajustado pela força do oponente. Um
+    refinador <strong>Gradient Boosting (XGBoost)</strong> cruza essa
+    probabilidade-base com fatores contextuais — fadiga (dias de descanso), forma
+    recente e mando de campo.</p>
+    <p><strong>Como aprende:</strong> um <em>replay</em> cronológico fotografa o
+    estado de cada time <em>antes</em> de cada jogo (sem vazamento de futuro) e
+    só então aplica o resultado. Usa a <strong>Pinnacle</strong> como linha de
+    referência — bater a linha de fechamento dela (o <em>Closing Line Value</em>)
+    é o teste de ouro de um modelo de valor.</p>
+    <p><strong>Disciplina:</strong> só emite sinal quando passa em
+    <strong>três filtros</strong> — margem absoluta ≥ 4%, discordância
+    <em>relativa</em> ≥ 15% frente à probabilidade justa (método Shin) e cotação
+    até 4.0. Os dois últimos neutralizam o clássico <em>favourite-longshot
+    bias</em> (a tendência de só "achar valor" em azarões).</p>
+  </div>
+</div>
+
+<div class="card theory-section">
+  <p><strong>Mesma régua, disciplina compartilhada.</strong> Os dois motores hoje
+  passam pelo <em>mesmo núcleo de seleção e dimensionamento</em> — cada um com
+  seus próprios parâmetros, as metodologias seguem separadas. Esse núcleo:
+  compara a discordância contra a probabilidade <em>justa</em> (sem margem, via
+  Shin) e não contra a cotação crua; exige discordância <em>relativa</em> (não um
+  corte absoluto que dispara fácil em cotação alta); aplica <strong>teto de
+  cotação</strong>; <strong>ancora as probabilidades ao mercado</strong>
+  (encolhimento bayesiano); e tem uma <strong>porta de sanidade</strong> que
+  rejeita a entrada quando o modelo discorda absurdamente do mercado — sinal
+  quase certo de erro de estimativa, não de valor. Foi isso que eliminou os
+  "azarões improváveis" que apareciam antes.</p>
+</div>
+
+<h2>3. Modelos estatísticos (motor principal)</h2>
 
 <div class="card theory-section">
   <h3>Dixon-Coles (resultado e gols)</h3>
@@ -64,7 +124,7 @@
   </div>
 </div>
 
-<h2>3. Da odd ao valor esperado</h2>
+<h2>4. Da odd ao valor esperado</h2>
 
 <div class="card theory-section">
   <p>Uma odd <code>o</code> implica uma probabilidade <code>1 / o</code>. O
@@ -76,34 +136,74 @@
   <code>p</code>:</p>
 
   <div class="formula">
-    EV = p × odd − 1 &nbsp;&nbsp;|&nbsp;&nbsp; edge = p − 1/odd
+    EV = p × odd − 1 &nbsp;&nbsp;|&nbsp;&nbsp; edge = p − p<sub>justa</sub>
   </div>
 
-  <p>O Betflow só recomenda uma aposta quando <strong>EV &gt; 0</strong> e
-  <strong>edge ≥ 3%</strong>. Isso deixa uma folga para erros de modelo e
-  movimentos de mercado.</p>
+  <p>O Betflow só recomenda uma entrada quando há <strong>EV &gt; 0</strong>,
+  um <strong>edge absoluto mínimo</strong> <em>e</em> uma
+  <strong>discordância relativa</strong> suficiente frente à probabilidade justa
+  — ou seja, <code>p ≥ p<sub>justa</sub> × (1 + margem relativa)</code>. O corte
+  relativo é o que impede que 3 pontos percentuais de ruído em uma cotação alta
+  (onde isso é uma discordância enorme em termos relativos) sejam confundidos
+  com valor. Cada motor usa seus próprios limiares.</p>
 </div>
 
-<h2>4. Gestão de banca — Kelly fracionário</h2>
+<h2>5. Gestão adequada de banca</h2>
 
 <div class="card theory-section">
+  <h3>Kelly fracionário — a base</h3>
   <p>O critério de Kelly define a fração ótima da banca a apostar em uma
-  oportunidade com edge conhecido:</p>
+  oportunidade com edge conhecido, maximizando o crescimento geométrico no longo
+  prazo:</p>
 
   <div class="formula">
     f* = (b·p − q) / b &nbsp;&nbsp;onde&nbsp;&nbsp; b = odd − 1,&nbsp; q = 1 − p
   </div>
 
-  <p>Kelly pleno é volátil demais para apostas esportivas (os erros de modelo
-  são grandes), então usamos <strong>1/4 Kelly</strong>. Com uma banca de
-  R$ 1.000 e stake sugerido de 2%, o valor da aposta seria R$ 20.</p>
-
-  <p>Importante: Kelly pressupõe que você conhece a probabilidade real. Como
-  usamos uma estimativa de modelo, o fracionamento é uma proteção contra o
-  <em>overbetting</em>.</p>
+  <p>Kelly pleno é volátil demais para esportes (os erros de modelo são
+  grandes), então usamos <strong>1/4 Kelly</strong>. Com uma banca de R$ 1.000 e
+  stake sugerido de 2%, a entrada seria de R$ 20. Kelly pressupõe que você
+  <em>conhece</em> a probabilidade real; como usamos uma <em>estimativa</em>, o
+  fracionamento é a primeira proteção contra o <em>overbetting</em>.</p>
 </div>
 
-<h2>5. Calibração de probabilidades</h2>
+<div class="grid cols-2">
+  <div class="card theory-section">
+    <h3>Kelly escalado por confiança</h3>
+    <p>Nem todo jogo merece o mesmo peso. A fração é <strong>encolhida</strong>
+    quando há sinais de que o modelo está menos seguro: poucos jogos históricos
+    de um dos times, time recém-promovido, distribuição 1X2 muito indefinida
+    (entropia alta) ou discordância grande demais frente ao mercado (provável
+    erro, não valor). É assim que se evita "pesar a mão em jogos duvidosos".</p>
+  </div>
+  <div class="card theory-section">
+    <h3>Ancoragem ao mercado</h3>
+    <p>Antes de dimensionar, a probabilidade do modelo é puxada em direção à
+    probabilidade justa do mercado (encolhimento bayesiano): a linha de
+    fechamento é um estimador muito afiado e serve de <em>prior</em> forte.
+    Probabilidade mais honesta ⇒ stake mais honesto, e menos entradas exageradas
+    na cauda das cotações altas.</p>
+  </div>
+</div>
+
+<div class="card theory-section">
+  <h3>Tetos e disciplina</h3>
+  <ul>
+    <li><strong>Teto por entrada:</strong> um limite máximo por jogo (ex.: 2% da
+      banca) independentemente do que Kelly sugerir.</li>
+    <li><strong>Teto de exposição por rodada:</strong> a soma das entradas
+      simultâneas é limitada para conter o risco de um dia ruim.</li>
+    <li><strong>Correlação:</strong> seleções do mesmo jogo (ex.: mandante +
+      Over 2,5) não são independentes e não devem ser somadas como se fossem.</li>
+    <li><strong>Banca de referência fixa</strong> (R$ 1.000) para comparar os
+      dois motores na mesma régua.</li>
+    <li><strong>Drawdown é métrica de primeira classe:</strong> acompanhamos a
+      maior queda acumulada, não só ROI e yield — sobreviver às sequências ruins
+      é o que mantém o edge composto ao longo do tempo.</li>
+  </ul>
+</div>
+
+<h2>6. Calibração de probabilidades</h2>
 
 <div class="card theory-section">
   <p>Modelos estatísticos podem estar <strong>descalibrados</strong>: quando
@@ -120,7 +220,7 @@
   amostras (menos de 20), o sistema usa a probabilidade do modelo crua.</p>
 </div>
 
-<h2>6. Backtest walk-forward</h2>
+<h2>7. Backtest walk-forward e CLV</h2>
 
 <div class="card theory-section">
   <p>O teste mais honesto de um sistema de apostas é o
@@ -137,7 +237,7 @@
   </ul>
 </div>
 
-<h2>7. Limitações e advertências</h2>
+<h2>8. Limitações e advertências</h2>
 
 <div class="card theory-warn">
   <ul>
@@ -154,19 +254,143 @@
   </ul>
 </div>
 
-<h2>8. Fluxo resumido</h2>
+<h2>9. Fluxo resumido</h2>
 
 <div class="card theory-section">
   <ol class="flow">
-    <li><strong>Coleta:</strong> baixa CSVs históricos e/ou consome odds ao vivo.</li>
-    <li><strong>Modelagem:</strong> treina Dixon-Coles, NB e Poisson.</li>
-    <li><strong>Calibração:</strong> ajusta probabilidades com histórico real.</li>
-    <li><strong>Scan:</strong> compara modelo × odds da Betano.</li>
-    <li><strong>Filtro:</strong> mantém só apostas com EV positivo e edge ≥ 3%.</li>
+    <li><strong>Ingestão (3/3h):</strong> SofaScore + The Odds API atualizam o
+      warehouse no Postgres/Supabase.</li>
+    <li><strong>Recálculo:</strong> ao chegar jogo novo, os ratings são
+      recalculados e os modelos retreinados (orientado a evento).</li>
+    <li><strong>Modelagem:</strong> motor principal treina Dixon-Coles (+ NB e
+      Poisson); a Boosted Research treina o Elo bivariado + XGBoost.</li>
+    <li><strong>Calibração:</strong> ajusta probabilidades com o histórico real
+      já liquidado.</li>
+    <li><strong>Scan:</strong> cada motor compara suas probabilidades com as
+      cotações — o principal via Betano, a Boosted via Pinnacle.</li>
+    <li><strong>Filtro:</strong> mantém só sinais com EV positivo (edge ≥ 3% no
+      principal, ≥ 4% na Boosted).</li>
     <li><strong>Stake:</strong> dimensiona pela fração de Kelly (1/4).</li>
-    <li><strong>Tracking:</strong> registra, acompanha e liquida resultados.</li>
-    <li><strong>Aprendizado:</strong> novas apostas liquidadas alimentam a
-      calibração.</li>
+    <li><strong>Tracking:</strong> registra ambos os track records e liquida os
+      resultados automaticamente.</li>
+    <li><strong>Comparação:</strong> a aba <em>Comparativo</em> confronta as
+      duas linhas na mesma régua.</li>
   </ol>
+</div>
+
+<h2>10. Glossário de termos</h2>
+
+<div class="card theory-warn">
+  <p><strong>Leia isto primeiro — o que "chance estimada" NÃO é.</strong> Se um
+  cartão diz <em>chance estimada 44%</em> para o time X, isso <u>não</u> quer
+  dizer "44% de chance de X ser melhor que Y" nem que o modelo ache o jogo
+  equilibrado. É a probabilidade de <strong>aquele resultado específico</strong>
+  (aquela linha 1X2) sair, já <strong>ancorada ao mercado</strong>. Um azarão a
+  44% contra uma cotação que implica ~9% seria um exagero absurdo do modelo — e
+  é exatamente esse tipo de leitura que a <em>porta de sanidade</em> agora
+  rejeita antes de virar recomendação.</p>
+</div>
+
+<div class="card theory-section">
+  <dl class="glossary">
+    <dt>Chance estimada (p<sub>usada</sub>)</dt>
+    <dd>A probabilidade que o modelo atribui àquele resultado, <em>depois</em> de
+      ser puxada em direção ao consenso do mercado (ancoragem). É o número usado
+      para calcular retorno esperado e tamanho do aporte. Não é a "chance de o
+      time ser melhor" — é a chance daquele placar/resultado ocorrer.</dd>
+
+    <dt>Consenso do mercado (probabilidade justa)</dt>
+    <dd>A probabilidade embutida na cotação da casa <em>depois</em> de removida a
+      margem (o <em>overround</em>), pelo método Shin. É a melhor estimativa
+      coletiva disponível; serve de referência para medir se o modelo realmente
+      discorda.</dd>
+
+    <dt>Cotação</dt>
+    <dd>O número decimal ofertado pela casa (ex.: 2,50). Retorno bruto de uma
+      entrada vencedora = valor aportado × cotação. Uma cotação <code>o</code>
+      implica, sozinha, uma probabilidade crua de <code>1/o</code> — que ainda
+      contém a margem da casa.</dd>
+
+    <dt>Overround (margem)</dt>
+    <dd>A soma das probabilidades implícitas de um mercado passa de 100%; esse
+      excedente é a margem da casa. Precisa ser removido (devig) antes de
+      comparar com o modelo.</dd>
+
+    <dt>Devig / método Shin</dt>
+    <dd>Procedimento que retira a margem e devolve probabilidades que somam 100%.
+      O método Shin distribui a margem de forma desigual, corrigindo o
+      <em>favourite-longshot bias</em> (azarões saem com probabilidade menor, e
+      mais realista, do que uma simples divisão proporcional daria).</dd>
+
+    <dt>Edge (vantagem)</dt>
+    <dd>Diferença entre a chance estimada e a probabilidade justa
+      (<code>p − p<sub>justa</sub></code>). É a vantagem estatística bruta. Um
+      edge pequeno e consistente é o que se busca; um edge enorme costuma ser
+      erro de modelo, não achado.</dd>
+
+    <dt>Discordância relativa</dt>
+    <dd>O quanto a chance estimada supera a justa <em>em termos relativos</em>
+      (<code>p / p<sub>justa</sub> − 1</code>). Usamos um mínimo relativo (não só
+      absoluto) porque 3 pontos percentuais valem muito mais numa cotação alta do
+      que numa baixa.</dd>
+
+    <dt>Retorno esperado (EV)</dt>
+    <dd>Valor esperado por unidade aportada: <code>p × cotação − 1</code>.
+      Positivo significa vantagem no <strong>longo prazo</strong> — não é
+      garantia de lucro em nenhuma entrada isolada.</dd>
+
+    <dt>Confiança</dt>
+    <dd>Um fator entre 0 e 1 que resume o quanto se pode confiar na leitura:
+      cai com poucos jogos na base, com jogos muito indefinidos (entropia alta)
+      e com discordância grande frente ao mercado. Multiplica o tamanho do aporte
+      — leitura menos confiável, aporte menor.</dd>
+
+    <dt>Ancoragem ao mercado (encolhimento bayesiano)</dt>
+    <dd>Mistura entre a probabilidade do modelo e a justa do mercado. A linha de
+      fechamento é um estimador muito afiado; tratá-la como <em>prior</em> forte
+      puxa estimativas exageradas de volta ao razoável. É regularização pura.</dd>
+
+    <dt>Porta de sanidade</dt>
+    <dd>Regra que <strong>rejeita</strong> a entrada quando o modelo discorda do
+      mercado além de uma banda. Discordância extrema é quase sempre erro de
+      estimativa (ex.: rating instável de um time com poucos jogos), não valor
+      real. É o que elimina os "azarões improváveis".</dd>
+
+    <dt>Kelly fracionário</dt>
+    <dd>Critério que define a fração da banca a aportar dado o edge, maximizando
+      o crescimento de longo prazo. Usamos <strong>1/4 do Kelly</strong> porque
+      trabalhamos com <em>estimativas</em> (não certezas) — o fracionamento é a
+      primeira proteção contra apostar demais.</dd>
+
+    <dt>Alocação sugerida / teto de aporte</dt>
+    <dd>A fração da banca recomendada para a entrada (Kelly × confiança), sempre
+      limitada por um teto por entrada (ex.: 2%), independentemente do que o
+      Kelly sugerir.</dd>
+
+    <dt>ROI, Yield e Taxa de acerto</dt>
+    <dd><strong>ROI</strong>: lucro sobre a banca inicial. <strong>Yield</strong>:
+      lucro sobre o volume total movimentado. <strong>Taxa de acerto</strong>:
+      greens ÷ (greens + reds). Yield alto com taxa de acerto baixa é normal em
+      cotações altas — e vice-versa.</dd>
+
+    <dt>Drawdown</dt>
+    <dd>A maior queda acumulada da banca a partir de um pico. Sobreviver aos
+      drawdowns é o que mantém o edge composto; por isso é métrica de primeira
+      classe, ao lado de ROI e yield.</dd>
+
+    <dt>CLV (Closing Line Value)</dt>
+    <dd>Compara a cotação em que você entrou com a de fechamento. Se a cotação
+      caiu depois da sua entrada, você provavelmente pegou o lado certo — o
+      melhor indicador antecedente de que um método tem valor real.</dd>
+
+    <dt>Calibração (Platt / isotônica)</dt>
+    <dd>Ajuste que corrige probabilidades <em>descalibradas</em> (quando o "50%"
+      do modelo não acontece 50% das vezes), usando apenas histórico já
+      liquidado, sem olhar o futuro.</dd>
+
+    <dt>Walk-forward</dt>
+    <dd>Backtest honesto: treina com dados até uma data, avalia os jogos
+      seguintes, avança no tempo e repete — sem nunca usar informação do futuro.</dd>
+  </dl>
 </div>
 {% endblock %}

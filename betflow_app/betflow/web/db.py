@@ -177,9 +177,12 @@ _PG_STATEMENTS = [
         selection     TEXT NOT NULL,
         side          TEXT,
         bookmaker     TEXT,
+        strategy      TEXT NOT NULL DEFAULT 'main',
         odd           DOUBLE PRECISION NOT NULL,
         model_prob    DOUBLE PRECISION,
         implied_prob  DOUBLE PRECISION,
+        fair_prob     DOUBLE PRECISION,
+        confidence    DOUBLE PRECISION,
         ev            DOUBLE PRECISION,
         edge          DOUBLE PRECISION,
         source        TEXT,
@@ -190,7 +193,7 @@ _PG_STATEMENTS = [
         pnl           DOUBLE PRECISION NOT NULL DEFAULT 0.0,
         auto_settled  INTEGER NOT NULL DEFAULT 0,
         settled_at    TEXT,
-        CONSTRAINT uq_suggestions_event UNIQUE (user_id, event_id, market)
+        CONSTRAINT uq_suggestions_event UNIQUE (user_id, strategy, event_id, market)
     )""",
     """CREATE TABLE IF NOT EXISTS suggestions_scans (
         id           BIGSERIAL PRIMARY KEY,
@@ -234,6 +237,19 @@ _PG_STATEMENTS = [
 ]
 
 
+_PG_MIGRATIONS = [
+    "ALTER TABLE suggestions ADD COLUMN IF NOT EXISTS strategy "
+    "TEXT NOT NULL DEFAULT 'main'",
+    "ALTER TABLE suggestions ADD COLUMN IF NOT EXISTS fair_prob DOUBLE PRECISION",
+    "ALTER TABLE suggestions ADD COLUMN IF NOT EXISTS confidence DOUBLE PRECISION",
+    "ALTER TABLE suggestions DROP CONSTRAINT IF EXISTS uq_suggestions_event",
+    "ALTER TABLE suggestions ADD CONSTRAINT uq_suggestions_event "
+    "UNIQUE (user_id, strategy, event_id, market)",
+    "CREATE INDEX IF NOT EXISTS idx_suggestions_strategy "
+    "ON suggestions(strategy)",
+]
+
+
 def init_pg_schema() -> None:
     """Cria schema, tabelas e indices no Postgres (idempotente)."""
     import psycopg
@@ -245,5 +261,12 @@ def init_pg_schema() -> None:
         raw.execute(f"SET search_path TO {_PG_SCHEMA_NAME}, public")
         for stmt in _PG_STATEMENTS:
             raw.execute(stmt)
+        # Migracao idempotente p/ bancos ja existentes: coluna 'strategy' e
+        # troca da unicidade p/ incluir a estrategia (main x boosted no mesmo jogo).
+        for mig in _PG_MIGRATIONS:
+            try:
+                raw.execute(mig)
+            except Exception:  # noqa: BLE001 - migracao ja aplicada
+                pass
     finally:
         raw.close()

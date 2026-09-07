@@ -1,0 +1,96 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Comparativo{% endblock %}
+{% block content %}
+<h1>Comparativo <span class="hint">— motor principal x Boosted Research</span></h1>
+
+<p class="hint">
+  As duas linhas de predição avaliam os mesmos jogos e são registradas na mesma
+  régua: banca simulada fixa de <strong>R$ 1.000,00</strong> e stake fracionário
+  de Kelly (1/4). O <strong>motor principal</strong> usa Dixon-Coles calibrado;
+  a <strong>Boosted Research</strong> usa Elo bivariado + refino por Gradient
+  Boosting, com filtro triplo anti-azarão (margem absoluta 4%, discordância
+  relativa 15% sobre a linha justa de Shin e cotação máxima 4.0).
+</p>
+
+{% macro col(name, tag, s) %}
+<div class="card">
+  <h2>{{ name }} <span class="league-pill">{{ tag }}</span></h2>
+  <table>
+    <tbody>
+      <tr><td>Banca atual</td>
+        <td class="{{ 'pos' if s.current_bankroll >= s.initial_bankroll else 'neg' }}">
+          {{ s.current_bankroll | money }}</td></tr>
+      <tr><td>P&amp;L</td>
+        <td class="{{ 'pos' if s.pnl >= 0 else 'neg' }}">{{ s.pnl | money }}</td></tr>
+      <tr><td>ROI</td>
+        <td class="{{ 'pos' if (s.roi or 0) >= 0 else 'neg' }}">{{ s.roi | pct }}</td></tr>
+      <tr><td>Yield</td>
+        <td class="{{ 'pos' if (s.yield or 0) >= 0 else 'neg' }}">{{ s.yield | pct }}</td></tr>
+      <tr><td>Taxa de acerto</td><td>{{ s.hit_rate | pct }}</td></tr>
+      <tr><td>Total / Pendentes</td><td>{{ s.n_total }} / {{ s.n_pending }}</td></tr>
+      <tr><td>Green / Red</td><td>{{ s.n_won }} / {{ s.n_lost }}</td></tr>
+      <tr><td>Maior drawdown</td>
+        <td class="{{ 'neg' if s.max_drawdown > 0 else '' }}">{{ s.max_drawdown | pct }}</td></tr>
+    </tbody>
+  </table>
+</div>
+{% endmacro %}
+
+<div class="grid cols-2 mt">
+  {{ col("Motor principal", "main", main_stats) }}
+  {{ col("Boosted Research", "boosted", boosted_stats) }}
+</div>
+
+<h2 class="mt">Sinais em aberto</h2>
+<div class="grid cols-2">
+  {% for title, lst in [("Motor principal", main_open), ("Boosted Research", boosted_open)] %}
+  <div class="card">
+    <h3>{{ title }}</h3>
+    {% if lst %}
+    <table>
+      <thead><tr><th>Jogo</th><th>Seleção</th><th>Odd</th><th>EV</th></tr></thead>
+      <tbody>
+      {% for r in lst %}
+        <tr>
+          <td class="hint">{{ r.kickoff_fmt }}<br>{{ r.home_team }} × {{ r.away_team }}</td>
+          <td>{{ r.selection }}</td>
+          <td>{{ '%.2f'|format(r.odd) }}</td>
+          <td class="{{ 'pos' if r.ev > 0 else 'neg' }}">{{ (r.ev * 100)|round(1) }}%</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="hint">Nenhum sinal em aberto.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+
+<h2 class="mt">Por campeonato</h2>
+<div class="grid cols-2">
+  {% for title, rows in [("Motor principal", main_by_league), ("Boosted Research", boosted_by_league)] %}
+  <div class="card">
+    <h3>{{ title }}</h3>
+    {% if rows %}
+    <table>
+      <thead><tr><th>Liga</th><th>Total</th><th>Acerto</th><th>P&amp;L</th><th>Yield</th></tr></thead>
+      <tbody>
+      {% for l in rows %}
+        <tr>
+          <td>{{ l.name }}</td>
+          <td>{{ l.total }}</td>
+          <td>{{ l.hit_rate | pct }}</td>
+          <td class="{{ 'pos' if l.pnl > 0 else ('neg' if l.pnl < 0 else '') }}">{{ l.pnl | money }}</td>
+          <td>{{ l.yield | pct }}</td>
+        </tr>
+      {% endfor %}
+      </tbody>
+    </table>
+    {% else %}
+    <p class="hint">Sem dados ainda.</p>
+    {% endif %}
+  </div>
+  {% endfor %}
+</div>
+{% endblock %}

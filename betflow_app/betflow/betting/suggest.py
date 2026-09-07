@@ -23,6 +23,7 @@ from betflow.data import odds_api
 from betflow.models.dixon_coles import DixonColesModel
 from betflow.models.counts import NegativeBinomialTotals, PoissonCards
 from betflow.betting import value
+from betflow.betting import staking
 from betflow.betting import calibration as calib
 from betflow.web import store
 from config import settings
@@ -31,11 +32,21 @@ CORNER_LINES = (9.5, 10.5, 11.5)
 CARD_LINES = (3.5, 4.5, 5.5)
 
 
+def _games_count(df) -> dict[str, int]:
+    """Numero de jogos de cada time no treino (para a confianca por dados)."""
+    if df is None or df.empty:
+        return {}
+    h = df["home_team"].value_counts()
+    a = df["away_team"].value_counts()
+    return (h.add(a, fill_value=0)).astype(int).to_dict()
+
+
 @dataclass
 class LeagueModels:
     dc: DixonColesModel | None = None
     corners: NegativeBinomialTotals | None = None
     cards: PoissonCards | None = None
+    games: dict[str, int] = field(default_factory=dict)
 
     @property
     def has_stats(self) -> bool:
@@ -83,7 +94,9 @@ def train_models(league_code: str) -> LeagueModels:
     except Exception:  # noqa: BLE001
         df_db = pd.DataFrame()
     if len(df_db) >= MIN_TRAIN:
-        models = LeagueModels(dc=DixonColesModel(xi=0.0018).fit(df_db))
+        models = LeagueModels(
+            dc=DixonColesModel(xi=settings.DC_XI, ridge=settings.DC_RIDGE).fit(df_db),
+            games=_games_count(df_db))
         if {"home_corners", "away_corners"} <= set(df_db.columns) \
                 and df_db[["home_corners", "away_corners"]].notna().any().all():
             models.corners = NegativeBinomialTotals().fit(df_db)
@@ -126,7 +139,9 @@ def train_models(league_code: str) -> LeagueModels:
     if df.empty:
         raise RuntimeError(f"sem dados de treino para {league_code}")
 
-    models = LeagueModels(dc=DixonColesModel(xi=0.0018).fit(df))
+    models = LeagueModels(
+        dc=DixonColesModel(xi=settings.DC_XI, ridge=settings.DC_RIDGE).fit(df),
+        games=_games_count(df))
     if {"home_corners", "away_corners"} <= set(df.columns) \
             and df[["home_corners", "away_corners"]].notna().any().all():
         models.corners = NegativeBinomialTotals().fit(df)
@@ -215,6 +230,7 @@ def suggest(leagues: list[str] | None = None, days: int = 7,
 
     res = SuggestResult()
     client = odds_api.OddsApiClient()
+    pol = staking.main_policy()
 
     for code in leagues:
         cfg = settings.LEAGUES.get(code)
@@ -246,23 +262,31 @@ def suggest(leagues: list[str] | None = None, days: int = 7,
             if not odds:
                 continue
             probs, source, (hm, am) = _reference_probs(models, ev, odds)
-            if source == "modelo" and calibration:
+            # Sem modelo (times desconhecidos) nao ha discordancia com o mercado:
+            # p_modelo == p_justa => nada passa. Poupamos o processamento.
+            if source != "modelo":
+                continue
+            if calibration:
                 calibrators = _calibrators_for(code, calibration,
                                                  calibration_min_samples)
                 if calibrators:
                     probs = calib.calibrate_1x2(probs, calibrators)
             stats = _stats_forecast(models, hm, am)
+            # Probabilidade JUSTA do mercado (Shin) — devig antes de comparar.
+            fair = value.fair_probs([odds["home"], odds["draw"], odds["away"]],
+                                    method="shin")
+            gh_n = models.games.get(hm or "", 0)
+            ga_n = models.games.get(am or "", 0)
             legs = [
-                ("1X2:H", f"{ev['home_team']} vencer", "home", probs["H"], odds["home"]),
-                ("1X2:D", "Empate", "draw", probs["D"], odds["draw"]),
-                ("1X2:A", f"{ev['away_team']} vencer", "away", probs["A"], odds["away"]),
+                ("1X2:H", f"{ev['home_team']} vencer", "home", probs["H"], odds["home"], float(fair[0])),
+                ("1X2:D", "Empate", "draw", probs["D"], odds["draw"], float(fair[1])),
+                ("1X2:A", f"{ev['away_team']} vencer", "away", probs["A"], odds["away"], float(fair[2])),
             ]
-            for market, sel, side, prob, odd in legs:
-                vb = value.evaluate_bet(market=market, selection=sel,
-                                        model_prob=prob, odd=odd,
-                                        fair_prob=1.0 / odd,
-                                        min_edge=min_edge, kelly=kelly)
-                if vb.stake_fraction > 0:
+            for market, sel, side, prob, odd, fp in legs:
+                dec = staking.evaluate(
+                    pol, market, sel, p_model=prob, p_fair=fp, odd=odd,
+                    probs=probs, games_home=gh_n, games_away=ga_n)
+                if dec.passed:
                     n_val += 1
                     res.suggestions.append({
                         "league": cfg["name"], "league_code": code,
@@ -273,10 +297,12 @@ def suggest(leagues: list[str] | None = None, days: int = 7,
                         "home": ev.get("home_team"), "away": ev.get("away_team"),
                         "market": market, "selection": sel, "side": side,
                         "bookmaker": bookmaker,
-                        "odd": round(odd, 2), "prob": round(prob, 4),
+                        "odd": round(odd, 2), "prob": round(dec.p_used, 4),
                         "implied": round(1.0 / odd, 4),
-                        "ev": round(vb.ev, 4), "edge": round(vb.edge, 4),
-                        "stake_frac": round(vb.stake_fraction, 4),
+                        "fair_prob": round(dec.p_fair, 4),
+                        "confidence": round(dec.confidence, 4),
+                        "ev": round(dec.ev, 4), "edge": round(dec.edge, 4),
+                        "stake_frac": round(dec.stake_fraction, 4),
                         "source": source, "stats": stats,
                     })
         res.leagues[code] = {"events": n_win, "value": n_val}

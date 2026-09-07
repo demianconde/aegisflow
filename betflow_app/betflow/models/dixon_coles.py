@@ -60,6 +60,7 @@ class DixonColesModel:
     confronto entre times vistos no treino.
     """
     xi: float = 0.0                       # decaimento temporal (0 = sem decaimento)
+    ridge: float = 0.0                    # regularizacao L2 das forcas (encolhe p/ media)
     max_goals: int = 10                   # truncamento da matriz de placares
     teams: list[str] = field(default_factory=list)
     attack: dict[str, float] = field(default_factory=dict)
@@ -91,7 +92,16 @@ class DixonColesModel:
         # tau pode ficar <=0 para rho extremo; penaliza (evita log(<=0))
         tau = np.clip(tau, 1e-10, None)
         ll = weights * (log_p + np.log(tau))
-        return -float(ll.sum())
+
+        # regularizacao ridge (L2): encolhe ataque/defesa para a media da liga.
+        # Escala pela massa de pesos para o termo nao depender do tamanho do
+        # treino (mesma "forca" de prior com poucos ou muitos jogos). Estabiliza
+        # forcas de times com amostra pequena (a origem das zebras extremas).
+        nll = -float(ll.sum())
+        if self.ridge > 0.0:
+            nll += self.ridge * float(weights.sum()) * float(
+                np.mean(att ** 2) + np.mean(def_ ** 2))
+        return nll
 
     def fit(self, df: pd.DataFrame, ref_date: pd.Timestamp | None = None
             ) -> "DixonColesModel":
