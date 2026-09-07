@@ -8,13 +8,13 @@
 </head>
 <body>
   <header class="topbar">
-    <div class="brand">⚽ Betflow <span class="tag">paper trading</span></div>
+    <div class="brand">⚽ Betflow <span class="tag">simulação</span></div>
     <nav>
       <a href="{{ url_for('dashboard') }}">Dashboard</a>
-      <a href="{{ url_for('suggestions_page') }}">Sugestões</a>
+      <a href="{{ url_for('suggestions_page') }}">Recomendações</a>
       <a href="{{ url_for('history_page') }}">Desempenho histórico</a>
       <a href="{{ url_for('predict_page') }}">Consultar jogo</a>
-      <a href="{{ url_for('bets_page') }}">Apostas</a>
+      <a href="{{ url_for('bets_page') }}">Registros</a>
       <a href="{{ url_for('theory_page') }}">Como funciona</a>
     </nav>
   </header>
@@ -25,8 +25,9 @@
     {% block content %}{% endblock %}
   </main>
   <footer class="foot">
-    Ferramenta analitica. Aposta e risco; nao ha garantia de lucro. As apostas
-    sao registradas manualmente (nao ha integracao real com casas).
+    Ferramenta analitica e educacional. Toda alocacao envolve risco; nao ha
+    garantia de retorno. Os aportes sao simulados e registrados apenas para
+    fins de estudo (nao ha integracao com terceiros).
   </footer>
 </body>
 </html>

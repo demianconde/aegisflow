@@ -8,10 +8,26 @@
     <span class="hint">— melhores oportunidades do modelo agora
       (referência: banca simulada de {{ ref_bankroll | money }})</span></h2>
   {% if recommendations %}
-  <table>
+  <div class="row" style="align-items:flex-end;gap:12px;margin-bottom:10px">
+    <div style="flex:0 0 auto">
+      <label for="valorTotal">Valor disponível total</label>
+      <input type="number" id="valorTotal" min="0" step="0.01"
+             value="{{ ref_bankroll }}"
+             style="width:180px"
+             oninput="recalcPessoal()">
+    </div>
+    <div class="hint" style="align-self:center">
+      A coluna <b>Valor sugerido (pessoal)</b> escala o valor sugerido do
+      sistema pela proporção do seu valor disponível
+      (valor&nbsp;pessoal = valor&nbsp;sistema × valor&nbsp;disponível ÷
+      {{ ref_bankroll | money }}).
+    </div>
+  </div>
+  <table id="recTable" data-ref="{{ ref_bankroll }}">
     <thead><tr>
       <th>Jogo</th><th>Início</th><th>Recomendação</th><th>Confiança</th>
-      <th>Odd</th><th>Valor sugerido</th><th>Retorno potencial</th><th>EV</th>
+      <th>Cotação</th><th>Valor sugerido</th>
+      <th>Valor sugerido (pessoal)</th><th>Retorno potencial</th><th>EV</th>
     </tr></thead>
     <tbody>
     {% for r in recommendations %}
@@ -23,12 +39,31 @@
         <td>{{ r.model_prob | pct }}</td>
         <td>{{ '%.2f' % r.odd }}</td>
         <td>{{ r.stake | money }}</td>
+        <td class="pessoal" data-stake="{{ r.stake }}" data-odd="{{ r.odd }}">—</td>
         <td class="pos">+{{ r.potential | money }}</td>
         <td class="{{ 'pos' if (r.ev or 0) >= 0 else 'neg' }}">{{ r.ev | pct }}</td>
       </tr>
     {% endfor %}
     </tbody>
   </table>
+  <script>
+    function recalcPessoal() {
+      var tbl = document.getElementById('recTable');
+      var ref = parseFloat(tbl.getAttribute('data-ref')) || 0;
+      var total = parseFloat(document.getElementById('valorTotal').value);
+      var fmt = new Intl.NumberFormat('pt-BR',
+        {minimumFractionDigits: 2, maximumFractionDigits: 2});
+      tbl.querySelectorAll('td.pessoal').forEach(function (td) {
+        if (!ref || isNaN(total)) { td.textContent = '—'; return; }
+        var stake = parseFloat(td.getAttribute('data-stake')) || 0;
+        var pessoal = stake * total / ref;
+        td.textContent = fmt.format(pessoal);
+        td.title = 'Retorno potencial pessoal: +' +
+          fmt.format(pessoal * ((parseFloat(td.getAttribute('data-odd')) || 1) - 1));
+      });
+    }
+    recalcPessoal();
+  </script>
   {% else %}
   <p class="hint">Nenhuma recomendação em aberto no momento. A varredura
     automática roda sozinha
@@ -100,22 +135,22 @@
 </div>
 
 <div class="grid cols-4 mt">
-  <div class="card kpi"><div class="label">Apostas abertas</div>
+  <div class="card kpi"><div class="label">Aportes em aberto</div>
     <div class="value">{{ stats.n_pending }}</div></div>
   <div class="card kpi"><div class="label">Exposicao aberta</div>
     <div class="value">{{ stats.exposure | money }}</div></div>
-  <div class="card kpi"><div class="label">Green / Red</div>
+  <div class="card kpi"><div class="label">Acertos / Erros</div>
     <div class="value">{{ stats.n_won }} / {{ stats.n_lost }}</div></div>
   <div class="card kpi"><div class="label">Taxa de acerto</div>
     <div class="value">{{ stats.hit_rate | pct }}</div></div>
 </div>
 
-<h2>Apostas abertas</h2>
+<h2>Aportes em aberto</h2>
 <p class="hint">
   <form class="inline" method="post" action="{{ url_for('settle_auto') }}">
-    <button class="ghost sm" type="submit">🔄 Buscar resultados e liquidar automaticamente</button>
+    <button class="ghost sm" type="submit">🔄 Buscar resultados e apurar automaticamente</button>
   </form>
-  Consulta a The Odds API e marca Green/Red dos jogos já terminados.
+  Consulta a referência de resultados e apura os jogos já terminados.
 </p>
 {% if pending %}
 <div class="card">

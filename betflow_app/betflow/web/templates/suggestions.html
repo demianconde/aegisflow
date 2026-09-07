@@ -1,8 +1,17 @@
 {% extends "base.html" %}
-{% block title %}Betflow · Sugestões{% endblock %}
+{% block title %}Betflow · Recomendações{% endblock %}
 {% block content %}
-<h1>Sugestões de apostas
-  <span class="hint">— {{ bookmaker }} · {{ selected_leagues|length }} campeonato(s) · via The Odds API</span></h1>
+<h1>Recomendações do modelo
+  <span class="hint">— referência de mercado · {{ selected_leagues|length }} campeonato(s)</span></h1>
+
+<div class="card" style="border-left:3px solid var(--accent, #6c7bf7)">
+  <strong>Onde realizar os aportes:</strong> gere as recomendações abaixo com
+  <b>⚡ Gerar recomendações</b> — cada cartão mostra <b>em quem aportar</b>, a
+  <b>alocação sugerida</b> e o <b>retorno potencial</b>, e permite registrar o
+  aporte no track record. As recomendações prontas também aparecem no
+  <a href="{{ url_for('dashboard') }}">Dashboard</a>, atualizadas pela operação
+  contínua 24x7.
+</div>
 
 <div class="card">
   <form method="get" action="{{ url_for('suggestions_page') }}" class="row">
@@ -35,12 +44,12 @@
     </div>
     <div style="flex:0">
       <label>&nbsp;</label>
-      <button type="submit" name="scan" value="1">⚡ Gerar sugestões</button>
+      <button type="submit" name="scan" value="1">⚡ Gerar recomendações</button>
     </div>
     <div class="hint" style="flex:1;align-self:center">
       Consome ~1 crédito por liga selecionada. Edge mín.
       {{ (min_edge*100)|round(1) }}% · Kelly {{ (kelly*100)|round(0) }}%.
-      {% if did_scan %}<br>💾 {{ saved_count }} sugestão(ões) salva(s) no track record.{% endif %}
+      {% if did_scan %}<br>💾 {{ saved_count }} recomendação(ões) salva(s) no track record.{% endif %}
     </div>
   </form>
 </div>
@@ -49,7 +58,7 @@
 
 {% if result %}
 <div class="grid cols-4 mt">
-  <div class="card kpi"><div class="label">Sugestões de valor</div>
+  <div class="card kpi"><div class="label">Recomendações de valor</div>
     <div class="value">{{ result.suggestions|length }}</div></div>
   <div class="card kpi"><div class="label">Ligas varridas</div>
     <div class="value">{{ result.leagues|length }}</div></div>
@@ -66,7 +75,7 @@
 {% endif %}
 
 {% if did_scan %}
-{# MODO VALOR: so apostas de valor #}
+{# MODO VALOR: so recomendacoes de valor #}
 {% if result.suggestions %}
 <div class="sugg-grid mt">
   {% for s in result.suggestions %}
@@ -76,16 +85,16 @@
       <span class="ko">{{ s.commence_time_fmt or s.commence_time }}</span>
     </div>
     <div class="sugg-match">{{ s.home }} <span class="x">×</span> {{ s.away }}</div>
-    <div class="sugg-rec">🎯 Apostar em <strong>{{ s.selection }}</strong>
+    <div class="sugg-rec">🎯 Aportar em <strong>{{ s.selection }}</strong>
       <span class="src src-{{ s.source }}">{{ s.source }}</span></div>
 
     <div class="sugg-metrics">
-      <div><span class="m-label">Odd</span><b>{{ '%.2f'|format(s.odd) }}</b></div>
+      <div><span class="m-label">Cotação</span><b>{{ '%.2f'|format(s.odd) }}</b></div>
       <div><span class="m-label">Prob. modelo</span><b>{{ (s.prob*100)|round(1) }}%</b></div>
       <div><span class="m-label">Edge</span><b class="pos">+{{ (s.edge*100)|round(1) }}%</b></div>
-      <div><span class="m-label">EV</span><b class="pos">+{{ (s.ev*100)|round(1) }}%</b></div>
-      <div><span class="m-label">Stake sug.</span><b>{{ (s.stake_frac*100)|round(2) }}%</b></div>
-      <div><span class="m-label">Valor</span><b>{{ (s.stake_frac * (stats.current_bankroll or 0)) | money }}</b></div>
+      <div><span class="m-label">Retorno esp.</span><b class="pos">+{{ (s.ev*100)|round(1) }}%</b></div>
+      <div><span class="m-label">Alocação sug.</span><b>{{ (s.stake_frac*100)|round(2) }}%</b></div>
+      <div><span class="m-label">Valor sugerido</span><b>{{ (s.stake_frac * (stats.current_bankroll or 0)) | money }}</b></div>
     </div>
 
     {% if s.stats %}
@@ -115,23 +124,23 @@
       <input type="hidden" name="next" value="{{ url_for('bets_page') }}">
       <input type="number" step="0.01" name="stake" required
              value="{{ (s.stake_frac * (stats.current_bankroll or 0)) | round(2) }}"
-             placeholder="stake">
-      <button type="submit">Registrar aposta</button>
+             placeholder="valor">
+      <button type="submit">Registrar aporte</button>
     </form>
   </div>
   {% endfor %}
 </div>
 {% else %}
-<div class="card hint mt">Nenhuma aposta de valor encontrada nesta janela.
+<div class="card hint mt">Nenhuma recomendação de valor encontrada nesta janela.
   Tente uma janela maior ou reduza o edge mínimo.</div>
 {% endif %}
 
 {% else %}
 {# MODO FIXTURES: todos os jogos sem treinar modelos #}
 <div class="card hint mt">
-  Modo agenda: aqui só listamos os jogos e odds da {{ bookmaker }}.
-  Clique em <b>Gerar sugestões</b> para que o modelo indique
-  <strong>em quem apostar</strong> e salve as recomendações no track record.
+  Modo agenda: aqui listamos apenas os jogos e a referência de mercado.
+  Clique em <b>Gerar recomendações</b> para que o modelo indique
+  <strong>em quem aportar</strong> e salve as recomendações no track record.
 </div>
 {% if result.suggestions %}
 <div class="card mt">
@@ -167,8 +176,8 @@
 {% endif %}
 
 {% elif not did_scan and not error %}
-<div class="card hint mt">Selecione os campeonatos e clique em <b>Gerar sugestões</b>
-  para ver em quem apostar e registrar as recomendações no track record.
+<div class="card hint mt">Selecione os campeonatos e clique em <b>Gerar recomendações</b>
+  para ver em quem aportar e registrar as recomendações no track record.
   O modo agenda (sem clicar no botão) mostra apenas os jogos futuros.</div>
 {% endif %}
 {% endblock %}
