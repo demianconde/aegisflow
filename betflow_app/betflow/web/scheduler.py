@@ -51,6 +51,37 @@ def status() -> dict[str, Any]:
         return dict(_STATE)
 
 
+def _run_ingest() -> None:
+    """Atualiza o cache de resultados e forca o retreino no proximo scan.
+
+    Cada rodada: ingere placares novos (SofaScore + Odds API) no banco e limpa
+    os caches de modelo/calibrador, para o Dixon-Coles retreinar com os dados
+    mais recentes e os calibradores reaprenderem com as sugestoes ja liquidadas.
+    """
+    from betflow.data import results_ingest
+    from betflow.betting import suggest
+    from betflow.web import store
+    from config import settings
+
+    before = store.count_matches()
+    summary = results_ingest.ingest_all(list(settings.TARGET_LEAGUES))
+    after = store.count_matches()
+    # Retreina APENAS quando entraram resultados novos (orientado a evento):
+    # apos cada rodada o modelo reaprende; sem jogo novo, fica ocioso.
+    retrained = after > before
+    if retrained:
+        suggest.clear_cache()  # forca retreino (modelos) e recalibracao
+    with _LOCK:
+        _STATE["last_ingest_at"] = _utcnow_iso()
+        _STATE["last_ingest_summary"] = summary
+        _STATE["matches_cached"] = after
+        _STATE["new_matches"] = after - before
+        if retrained:
+            _STATE["last_retrain_at"] = _utcnow_iso()
+    log.info("ingest ok: %s (cache=%d, novos=%d, retreino=%s)",
+             summary, after, after - before, retrained)
+
+
 def _run_scan() -> None:
     from betflow.betting import suggest
     from betflow.web import store
@@ -95,6 +126,7 @@ def _loop(scan_interval: float, settle_interval: float) -> None:
                 _run_settle()
             if now >= next_scan:
                 next_scan = now + scan_interval
+                _run_ingest()   # atualiza cache de resultados + retreina
                 _run_scan()
         except Exception as exc:  # noqa: BLE001 - o loop nunca pode morrer
             with _LOCK:

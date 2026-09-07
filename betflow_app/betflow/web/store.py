@@ -14,7 +14,7 @@ from __future__ import annotations
 
 import sqlite3
 from dataclasses import dataclass
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
 from typing import Any
 
@@ -115,9 +115,30 @@ CREATE TABLE IF NOT EXISTS suggestions_scans (
     notes        TEXT
 );
 
+CREATE TABLE IF NOT EXISTS matches (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    league_code   TEXT NOT NULL,       -- E0, BSA, ...
+    event_id      TEXT,                -- id externo (SofaScore/Odds API)
+    match_date    TEXT NOT NULL,       -- ISO UTC do inicio do jogo
+    season        TEXT,                -- codigo da temporada (ex.: 2526)
+    home_team     TEXT NOT NULL,
+    away_team     TEXT NOT NULL,
+    home_goals    INTEGER,
+    away_goals    INTEGER,
+    home_corners  INTEGER,
+    away_corners  INTEGER,
+    home_yellow   INTEGER,
+    away_yellow   INTEGER,
+    source        TEXT,                -- sofascore | odds_api | csv
+    updated_at    TEXT NOT NULL,
+    UNIQUE(league_code, home_team, away_team, match_date) ON CONFLICT REPLACE
+);
+
 """
 
 _INDEXES = """
+CREATE INDEX IF NOT EXISTS idx_matches_league ON matches(league_code);
+CREATE INDEX IF NOT EXISTS idx_matches_date   ON matches(match_date);
 CREATE INDEX IF NOT EXISTS idx_bets_user   ON bets(user_id);
 CREATE INDEX IF NOT EXISTS idx_bets_status ON bets(status);
 CREATE INDEX IF NOT EXISTS idx_bets_event  ON bets(event_id);
@@ -623,6 +644,39 @@ def list_open_recommendations(limit: int = 10,
     return [dict(r) for r in rows]
 
 
+def list_open_recommendations_filtered(
+        leagues: list[str] | None = None, days: int | None = None,
+        today_only: bool = False, limit: int = 300,
+        db_path: Path | str = DB_PATH, *,
+        user_id: int = DEFAULT_USER_ID) -> list[dict[str, Any]]:
+    """Recomendacoes pendentes de jogos futuros, filtradas por liga/janela.
+
+    Le APENAS do banco (populado pelo scan automatico de 3 em 3 horas); nao
+    consome cota de API. Ordena pelo maior EV.
+    """
+    now = datetime.now(timezone.utc)
+    q = ("SELECT * FROM suggestions WHERE user_id = ? AND status = 'PENDING' "
+         "AND (commence_time IS NULL OR commence_time >= ?)")
+    params: list[Any] = [user_id, now.isoformat(timespec="seconds")]
+    if today_only:
+        end = now.replace(hour=23, minute=59, second=59, microsecond=0)
+        q += " AND commence_time <= ?"
+        params.append(end.isoformat(timespec="seconds"))
+    elif days:
+        end = now + timedelta(days=days)
+        q += " AND commence_time <= ?"
+        params.append(end.isoformat(timespec="seconds"))
+    if leagues:
+        marks = ",".join("?" for _ in leagues)
+        q += f" AND division IN ({marks})"
+        params.extend([c.upper() for c in leagues])
+    q += " ORDER BY ev DESC, commence_time ASC LIMIT ?;"
+    params.append(limit)
+    with get_conn(db_path) as conn:
+        rows = conn.execute(q, tuple(params)).fetchall()
+    return [dict(r) for r in rows]
+
+
 def suggestions_stats_by_league(db_path: Path | str = DB_PATH, *,
                                 user_id: int = DEFAULT_USER_ID,
                                 min_samples: int = 1
@@ -808,6 +862,90 @@ def stats(db_path: Path | str = DB_PATH, *,
         "n_void": agg["void"] or 0,
         "hit_rate": (won / settled) if settled else None,
     }
+
+
+# ---------------------------------------------------------------------------
+# cache de resultados historicos (treino a partir do banco)
+# ---------------------------------------------------------------------------
+_MATCH_COLS = ("league_code", "event_id", "match_date", "season",
+               "home_team", "away_team", "home_goals", "away_goals",
+               "home_corners", "away_corners", "home_yellow", "away_yellow",
+               "source")
+
+
+def upsert_matches(rows: list[dict[str, Any]],
+                   db_path: Path | str = DB_PATH) -> int:
+    """Insere/atualiza resultados de jogos no cache. Retorna quantos gravou.
+
+    Deduplica por (league_code, home_team, away_team, match_date). Ignora
+    linhas sem placar (jogo ainda nao terminado).
+    """
+    now = _utcnow()
+    n = 0
+    with get_conn(db_path) as conn:
+        for r in rows:
+            if r.get("home_goals") is None or r.get("away_goals") is None:
+                continue
+            if not (r.get("home_team") and r.get("away_team")
+                    and r.get("match_date") and r.get("league_code")):
+                continue
+            vals = tuple(r.get(c) for c in _MATCH_COLS) + (now,)
+            cols = ",".join(_MATCH_COLS) + ",updated_at"
+            marks = ",".join("?" for _ in range(len(_MATCH_COLS) + 1))
+            if BACKEND == "postgres":
+                upd = ",".join(f"{c}=excluded.{c}" for c in _MATCH_COLS
+                               if c not in ("league_code", "home_team",
+                                            "away_team", "match_date"))
+                sql = (f"INSERT INTO matches ({cols}) VALUES ({marks}) "
+                       "ON CONFLICT (league_code, home_team, away_team, "
+                       f"match_date) DO UPDATE SET {upd}, updated_at=excluded.updated_at;")
+            else:  # sqlite: UNIQUE(...) ON CONFLICT REPLACE cuida do upsert
+                sql = f"INSERT INTO matches ({cols}) VALUES ({marks});"
+            conn.execute(sql, vals)
+            n += 1
+        conn.commit()
+    return n
+
+
+def load_matches_df(league_code: str, seasons: int = 3,
+                    db_path: Path | str = DB_PATH):
+    """DataFrame de resultados do cache p/ treino (colunas do DixonColes).
+
+    Retorna colunas home_team, away_team, home_goals, away_goals, date e, se
+    houver, home_corners/away_corners/home_yellow/away_yellow. `seasons` limita
+    aos N codigos de temporada mais recentes presentes no cache.
+    """
+    import pandas as pd
+    with get_conn(db_path) as conn:
+        rows = conn.execute(
+            "SELECT * FROM matches WHERE league_code = ? "
+            "AND home_goals IS NOT NULL AND away_goals IS NOT NULL "
+            "ORDER BY match_date;", (league_code,)).fetchall()
+    df = pd.DataFrame([dict(r) for r in rows])
+    if df.empty:
+        return df
+    df = df.rename(columns={"match_date": "date"})
+    df["date"] = pd.to_datetime(df["date"], errors="coerce", utc=True)
+    df = df.dropna(subset=["date"])
+    if seasons and "season" in df.columns and df["season"].notna().any():
+        keep = sorted(df["season"].dropna().astype(str).unique())[-seasons:]
+        df = df[df["season"].astype(str).isin(set(keep))]
+    return df
+
+
+def count_matches(league_code: str | None = None,
+                  db_path: Path | str = DB_PATH) -> int:
+    """Numero de jogos com placar no cache (por liga, ou total)."""
+    with get_conn(db_path) as conn:
+        if league_code:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM matches WHERE league_code = ? "
+                "AND home_goals IS NOT NULL;", (league_code,)).fetchone()
+        else:
+            row = conn.execute(
+                "SELECT COUNT(*) AS n FROM matches "
+                "WHERE home_goals IS NOT NULL;").fetchone()
+    return int(row["n"])
 
 
 def store_health(db_path: Path | str = DB_PATH) -> dict[str, Any]:

@@ -74,6 +74,26 @@ def train_models(league_code: str) -> LeagueModels:
 
     cfg = settings.LEAGUES[league_code]
     src = cfg["source"]
+
+    # 1) Fonte primaria: cache de resultados no banco (SofaScore + Odds API),
+    #    alimentado pela ingestao automatica. Independe do football-data.co.uk.
+    MIN_TRAIN = 60
+    try:
+        df_db = store.load_matches_df(league_code)
+    except Exception:  # noqa: BLE001
+        df_db = pd.DataFrame()
+    if len(df_db) >= MIN_TRAIN:
+        models = LeagueModels(dc=DixonColesModel(xi=0.0018).fit(df_db))
+        if {"home_corners", "away_corners"} <= set(df_db.columns) \
+                and df_db[["home_corners", "away_corners"]].notna().any().all():
+            models.corners = NegativeBinomialTotals().fit(df_db)
+        if {"home_yellow", "away_yellow"} <= set(df_db.columns) \
+                and df_db[["home_yellow", "away_yellow"]].notna().any().all():
+            models.cards = PoissonCards().fit(df_db)
+        _MODEL_CACHE[league_code] = models
+        return models
+
+    # 2) Fallbacks legados (CSV local / football-data / extra_leagues).
     if src == "fallback":
         models = LeagueModels()
         _MODEL_CACHE[league_code] = models

@@ -2,120 +2,105 @@
 {% block title %}Betflow · Recomendações{% endblock %}
 {% block content %}
 <h1>Recomendações do modelo
-  <span class="hint">— referência de mercado · {{ selected_leagues|length }} campeonato(s)</span></h1>
+  <span class="hint">— {{ selected_leagues|length }} campeonato(s) · atualização automática</span></h1>
 
 <div class="card" style="border-left:3px solid var(--accent, #6c7bf7)">
-  <strong>Onde realizar os aportes:</strong> gere as recomendações abaixo com
-  <b>⚡ Gerar recomendações</b> — cada cartão mostra <b>em quem aportar</b>, a
-  <b>alocação sugerida</b> e o <b>retorno potencial</b>, e permite registrar o
-  aporte no track record. As recomendações prontas também aparecem no
-  <a href="{{ url_for('dashboard') }}">Dashboard</a>, atualizadas pela operação
-  contínua 24x7.
+  <strong>Como usar:</strong> o modelo roda sozinho a cada 3&nbsp;horas para
+  todas as ligas e salva as recomendações aqui. Você só <b>filtra</b> abaixo e
+  registra os aportes. Cada cartão mostra <b>em quem aportar</b>, a
+  <b>alocação sugerida</b> e o <b>retorno potencial</b>.
+  {% if ops.last_scan_at %}
+  <div class="hint" style="margin-top:6px">🔄 Última atualização automática:
+    {{ ops.last_scan_fmt }} (Brasília).</div>
+  {% endif %}
 </div>
 
 <div class="card">
-  <form method="get" action="{{ url_for('suggestions_page') }}" class="row">
-    <div>
+  <form method="get" action="{{ url_for('suggestions_page') }}" class="filter-bar">
+    <div class="filter-field">
       <label>Campeonatos</label>
-      <select name="league" multiple size="4">
+      <select name="league" multiple size="5">
         {% for code in leagues %}
         <option value="{{ code }}" {{ 'selected' if code in selected_leagues else '' }}>
           {{ league_names[code].name }}
         </option>
         {% endfor %}
       </select>
-      <div class="hint">Segure Ctrl/Cmd para selecionar vários.</div>
+      <div class="hint">Ctrl/Cmd p/ vários · vazio = todas.</div>
     </div>
-    <div>
+    <div class="filter-field">
       <label>Janela</label>
       <select name="days">
         {% for d in [1,2,3,5,7,10] %}
-        <option value="{{ d }}" {{ 'selected' if days==d else '' }}>
-          próximos {{ d }} dias</option>
+        <option value="{{ d }}" {{ 'selected' if days==d else '' }}>próximos {{ d }} dias</option>
         {% endfor %}
       </select>
     </div>
-    <div>
+    <div class="filter-field">
       <label>Somente hoje?</label>
       <select name="today">
         <option value="0" {{ 'selected' if not today_only else '' }}>não</option>
         <option value="1" {{ 'selected' if today_only else '' }}>sim</option>
       </select>
     </div>
-    <div style="flex:0">
-      <label>&nbsp;</label>
-      <button type="submit" name="scan" value="1">⚡ Gerar recomendações</button>
+    <div class="filter-field">
+      <label>Valor disponível total</label>
+      <input type="number" id="valorTotal" min="0" step="0.01"
+             value="{{ ref_bankroll }}" oninput="recalcPessoal()">
+      <div class="hint">Escala o valor sugerido para a sua realidade.</div>
     </div>
-    <div class="hint" style="flex:1;align-self:center">
-      Consome ~1 crédito por liga selecionada. Edge mín.
-      {{ (min_edge*100)|round(1) }}% · Kelly {{ (kelly*100)|round(0) }}%.
-      {% if did_scan %}<br>💾 {{ saved_count }} recomendação(ões) salva(s) no track record.{% endif %}
+    <div class="filter-field filter-actions">
+      <label>&nbsp;</label>
+      <button type="submit">Filtrar</button>
     </div>
   </form>
 </div>
 
 {% if error %}<div class="error">{{ error }}</div>{% endif %}
 
-{% if result %}
 <div class="grid cols-4 mt">
   <div class="card kpi"><div class="label">Recomendações de valor</div>
-    <div class="value">{{ result.suggestions|length }}</div></div>
-  <div class="card kpi"><div class="label">Ligas varridas</div>
-    <div class="value">{{ result.leagues|length }}</div></div>
-  <div class="card kpi"><div class="label">Cota restante</div>
-    <div class="value">{{ result.quota_remaining if result.quota_remaining is not none else '—' }}</div></div>
-  <div class="card kpi"><div class="label">Banca atual</div>
-    <div class="value">{{ stats.current_bankroll | money }}</div></div>
+    <div class="value">{{ recommendations|length }}</div></div>
+  <div class="card kpi"><div class="label">Campeonatos filtrados</div>
+    <div class="value">{{ selected_leagues|length }}</div></div>
+  <div class="card kpi"><div class="label">Banca (track record)</div>
+    <div class="value">{{ bankroll | money }}</div></div>
+  <div class="card kpi"><div class="label">Operação 24x7</div>
+    <div class="value">{{ '🟢 ativa' if ops.enabled else '⚪ manual' }}</div></div>
 </div>
 
-{% if result.errors %}
-<div class="warn mt">
-  {% for e in result.errors %}<div>⚠️ {{ e }}</div>{% endfor %}
-</div>
-{% endif %}
-
-{% if did_scan %}
-{# MODO VALOR: so recomendacoes de valor #}
-{% if result.suggestions %}
-<div class="sugg-grid mt">
-  {% for s in result.suggestions %}
+{% if recommendations %}
+<div class="sugg-grid mt" id="recGrid" data-ref="{{ ref_bankroll }}">
+  {% for s in recommendations %}
   <div class="card sugg">
     <div class="sugg-head">
-      <span class="league-pill">{{ s.league_code }}</span>
-      <span class="ko">{{ s.commence_time_fmt or s.commence_time }}</span>
+      <span class="league-pill">{{ s.division }}</span>
+      <span class="ko">{{ s.commence_time_fmt }}</span>
     </div>
-    <div class="sugg-match">{{ s.home }} <span class="x">×</span> {{ s.away }}</div>
+    <div class="sugg-match">{{ s.home_team }} <span class="x">×</span> {{ s.away_team }}</div>
     <div class="sugg-rec">🎯 Aportar em <strong>{{ s.selection }}</strong>
-      <span class="src src-{{ s.source }}">{{ s.source }}</span></div>
+      <span class="hint">· {{ s.bookmaker }}</span></div>
 
     <div class="sugg-metrics">
       <div><span class="m-label">Cotação</span><b>{{ '%.2f'|format(s.odd) }}</b></div>
-      <div><span class="m-label">Prob. modelo</span><b>{{ (s.prob*100)|round(1) }}%</b></div>
-      <div><span class="m-label">Edge</span><b class="pos">+{{ (s.edge*100)|round(1) }}%</b></div>
+      <div><span class="m-label">Prob. modelo</span><b>{{ (s.model_prob*100)|round(1) }}%</b></div>
       <div><span class="m-label">Retorno esp.</span><b class="pos">+{{ (s.ev*100)|round(1) }}%</b></div>
       <div><span class="m-label">Alocação sug.</span><b>{{ (s.stake_frac*100)|round(2) }}%</b></div>
-      <div><span class="m-label">Valor sugerido</span><b>{{ (s.stake_frac * (stats.current_bankroll or 0)) | money }}</b></div>
+      <div><span class="m-label">Valor sugerido</span>
+        <b>{{ (s.stake_frac * bankroll) | money }}</b></div>
+      <div><span class="m-label">Valor pessoal</span>
+        <b class="pessoal" data-stake="{{ s.stake_frac * ref_bankroll }}"
+           data-odd="{{ s.odd }}">—</b></div>
     </div>
-
-    {% if s.stats %}
-    <div class="sugg-stats">
-      <div><span class="tag">Escanteios</span> esp. {{ s.stats.corners.expected }}
-        · O9.5 {{ (s.stats.corners.over['9.5']*100)|round(0) }}%
-        · O10.5 {{ (s.stats.corners.over['10.5']*100)|round(0) }}%</div>
-      <div><span class="tag">Cartões</span> esp. {{ s.stats.cards.expected }}
-        · O3.5 {{ (s.stats.cards.over['3.5']*100)|round(0) }}%
-        · O4.5 {{ (s.stats.cards.over['4.5']*100)|round(0) }}%</div>
-    </div>
-    {% endif %}
 
     <form method="post" action="{{ url_for('add_bet') }}" class="sugg-form">
-      <input type="hidden" name="home_team" value="{{ s.home }}">
-      <input type="hidden" name="away_team" value="{{ s.away }}">
+      <input type="hidden" name="home_team" value="{{ s.home_team }}">
+      <input type="hidden" name="away_team" value="{{ s.away_team }}">
       <input type="hidden" name="market" value="{{ s.market }}">
-      <input type="hidden" name="selection" value="{{ s.home }} x {{ s.away }}: {{ s.selection }}">
+      <input type="hidden" name="selection" value="{{ s.home_team }} x {{ s.away_team }}: {{ s.selection }}">
       <input type="hidden" name="odd" value="{{ s.odd }}">
-      <input type="hidden" name="division" value="{{ s.league_code }}">
-      <input type="hidden" name="model_prob" value="{{ s.prob }}">
+      <input type="hidden" name="division" value="{{ s.division }}">
+      <input type="hidden" name="model_prob" value="{{ s.model_prob }}">
       <input type="hidden" name="ev" value="{{ s.ev }}">
       <input type="hidden" name="edge" value="{{ s.edge }}">
       <input type="hidden" name="sport_key" value="{{ s.sport_key }}">
@@ -123,61 +108,35 @@
       <input type="hidden" name="commence_time" value="{{ s.commence_time }}">
       <input type="hidden" name="next" value="{{ url_for('bets_page') }}">
       <input type="number" step="0.01" name="stake" required
-             value="{{ (s.stake_frac * (stats.current_bankroll or 0)) | round(2) }}"
-             placeholder="valor">
+             value="{{ (s.stake_frac * bankroll) | round(2) }}" placeholder="valor">
       <button type="submit">Registrar aporte</button>
     </form>
   </div>
   {% endfor %}
 </div>
 {% else %}
-<div class="card hint mt">Nenhuma recomendação de valor encontrada nesta janela.
-  Tente uma janela maior ou reduza o edge mínimo.</div>
+<div class="card hint mt">Nenhuma recomendação de valor na janela/ligas
+  selecionadas. Amplie a janela ou aguarde a próxima atualização automática
+  (a cada 3h).</div>
 {% endif %}
 
-{% else %}
-{# MODO FIXTURES: todos os jogos sem treinar modelos #}
-<div class="card hint mt">
-  Modo agenda: aqui listamos apenas os jogos e a referência de mercado.
-  Clique em <b>Gerar recomendações</b> para que o modelo indique
-  <strong>em quem aportar</strong> e salve as recomendações no track record.
-</div>
-{% if result.suggestions %}
-<div class="card mt">
-  <table class="fixture-table">
-    <thead>
-      <tr>
-        <th>Data</th>
-        <th>Liga</th>
-        <th>Jogo</th>
-        <th>1</th>
-        <th>X</th>
-        <th>2</th>
-      </tr>
-    </thead>
-    <tbody>
-      {% for s in result.suggestions %}
-      <tr>
-        <td>{{ s.commence_time_fmt or s.commence_time }}</td>
-        <td><span class="league-pill">{{ s.league_code }}</span></td>
-        <td>{{ s.home }} <span class="x">×</span> {{ s.away }}</td>
-        <td>{% if s.odds %}{{ '%.2f'|format(s.odds.home) }}{% else %}—{% endif %}</td>
-        <td>{% if s.odds %}{{ '%.2f'|format(s.odds.draw) }}{% else %}—{% endif %}</td>
-        <td>{% if s.odds %}{{ '%.2f'|format(s.odds.away) }}{% else %}—{% endif %}</td>
-      </tr>
-      {% endfor %}
-    </tbody>
-  </table>
-</div>
-{% else %}
-<div class="card hint mt">Nenhum jogo encontrado nesta janela.
-  Tente uma janela maior.</div>
-{% endif %}
-{% endif %}
-
-{% elif not did_scan and not error %}
-<div class="card hint mt">Selecione os campeonatos e clique em <b>Gerar recomendações</b>
-  para ver em quem aportar e registrar as recomendações no track record.
-  O modo agenda (sem clicar no botão) mostra apenas os jogos futuros.</div>
-{% endif %}
+<script>
+  function recalcPessoal() {
+    var grid = document.getElementById('recGrid');
+    if (!grid) return;
+    var ref = parseFloat(grid.getAttribute('data-ref')) || 0;
+    var total = parseFloat(document.getElementById('valorTotal').value);
+    var fmt = new Intl.NumberFormat('pt-BR',
+      {minimumFractionDigits: 2, maximumFractionDigits: 2});
+    grid.querySelectorAll('.pessoal').forEach(function (el) {
+      if (!ref || isNaN(total)) { el.textContent = '—'; return; }
+      var stake = parseFloat(el.getAttribute('data-stake')) || 0;
+      var pessoal = stake * total / ref;
+      el.textContent = 'R$ ' + fmt.format(pessoal);
+      el.title = 'Retorno potencial pessoal: +' +
+        fmt.format(pessoal * ((parseFloat(el.getAttribute('data-odd')) || 1) - 1));
+    });
+  }
+  recalcPessoal();
+</script>
 {% endblock %}

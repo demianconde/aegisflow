@@ -294,9 +294,12 @@ def create_app() -> Flask:
 
     @app.route("/suggestions")
     def suggestions_page():
-        """Sugestoes de apostas futuras (odds da Betano via Odds API)."""
-        result, error, saved_count = None, None, 0
-        show_suggestions = request.args.get("scan") == "1"
+        """Recomendacoes ja calculadas (le do banco; nao consome cota).
+
+        O scan automatico roda de 3 em 3 horas e salva no banco; esta pagina
+        so filtra e exibe. Sem botao de gerar.
+        """
+        error = None
         days = int(request.args.get("days", 7) or 7)
         today_only = request.args.get("today") == "1"
         selected_leagues = [
@@ -306,35 +309,25 @@ def create_app() -> Flask:
         if not selected_leagues:
             selected_leagues = list(settings.TARGET_LEAGUES)
 
-        if not engine.odds_api_enabled:
-            error = ("The Odds API desativada: defina BETFLOW_ODDS_API_KEY no "
-                     ".env para gerar sugestoes.")
-        elif show_suggestions:
-            try:
-                result = suggest.suggest(days=days, today_only=today_only,
-                                         leagues=selected_leagues,
-                                         calibration="platt",
-                                         calibration_min_samples=20)
-                # Persiste as sugestoes no track record (desempenho historico)
-                saved_count = store.save_suggestions(
-                    result.suggestions, bookmaker=settings.PREFERRED_BOOKMAKER,
-                    days=days, today_only=today_only,
-                    leagues=selected_leagues,
-                    quota_remaining=result.quota_remaining)
-            except Exception as exc:  # noqa: BLE001
-                error = f"Falha ao gerar sugestoes: {exc}"
-        else:
-            # Modo leve: mostra os proximos jogos sem treinar modelos.
-            try:
-                result = _upcoming_fixtures_for_page(
-                    leagues=selected_leagues,
-                    days=days, today_only=today_only)
-            except Exception as exc:  # noqa: BLE001
-                error = f"Falha ao carregar jogos: {exc}"
+        recommendations = []
+        try:
+            recommendations = store.list_open_recommendations_filtered(
+                leagues=selected_leagues, days=days, today_only=today_only)
+            for r in recommendations:
+                r["commence_time_fmt"] = _fmt_kickoff(r.get("commence_time") or "")
+        except Exception as exc:  # noqa: BLE001
+            error = f"Falha ao carregar recomendacoes: {exc}"
+
+        ref_bankroll = store.get_suggestions_initial_bankroll()
+        sugg_stats = store.suggestions_stats()
+        ops = scheduler.status()
+        if ops.get("last_scan_at"):
+            ops["last_scan_fmt"] = _fmt_kickoff(ops["last_scan_at"])[6:]
         return render_template(
-            "suggestions.html", result=result, error=error,
-            did_scan=show_suggestions, saved_count=saved_count,
-            days=days, today_only=today_only, stats=store.stats(),
+            "suggestions.html", recommendations=recommendations, error=error,
+            days=days, today_only=today_only,
+            bankroll=(sugg_stats.get("current_bankroll") or ref_bankroll),
+            ref_bankroll=ref_bankroll, ops=ops,
             bookmaker=settings.PREFERRED_BOOKMAKER,
             min_edge=settings.MIN_EDGE, kelly=settings.KELLY_FRACTION,
             selected_leagues=selected_leagues,
