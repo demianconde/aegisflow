@@ -15,6 +15,9 @@ primary_region = "gru"
   AEGIS_ENV = "production"
   AEGIS_LOG_JSON = "true"
   AEGIS_CORS_ORIGINS = "https://aegisflow.tech,https://www.aegisflow.tech"
+  # Betflow usa o Postgres/Supabase do gateway (schema isolado "betflow") em vez
+  # do SQLite efemero, para track record persistir entre deploys/maquinas.
+  BETFLOW_USE_GATEWAY_DB = "1"
 
 [processes]
   app = "uvicorn app.main:app --host 0.0.0.0 --port 8000"

@@ -91,7 +91,7 @@
     <div class="label">Operação 24x7</div>
     <div class="value">{{ '🟢 ativa' if ops.enabled else '⚪ manual' }}</div>
     <div class="hint">
-      {% if ops.last_settle_at %}última liquidação {{ ops.last_settle_at[11:16] }} UTC
+      {% if ops.last_settle_at %}última liquidação {{ ops.last_settle_fmt }} (Brasília)
       {% elif ops.enabled %}aguardando 1º ciclo{% else %}defina BETFLOW_ODDS_API_KEY{% endif %}
     </div>
   </div>

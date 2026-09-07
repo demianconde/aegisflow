@@ -87,10 +87,12 @@ def _settle_suggestions_auto(user_id: int = store.DEFAULT_USER_ID,
 
 
 def _fmt_kickoff(iso: str) -> str:
-    from datetime import datetime, timezone
+    from datetime import datetime, timezone, timedelta
     try:
         dt = datetime.fromisoformat(iso.replace("Z", "+00:00"))
-        return dt.astimezone(timezone.utc).strftime("%d/%m %H:%M")
+        # Horario de Brasilia (UTC-3, sem horario de verao desde 2019).
+        brt = dt.astimezone(timezone(timedelta(hours=-3)))
+        return brt.strftime("%d/%m %H:%M")
     except (ValueError, AttributeError):
         return iso
 
@@ -184,6 +186,9 @@ def create_app() -> Flask:
             r["stake"] = (r.get("stake_frac") or 0.0) * ref_bankroll
             r["potential"] = r["stake"] * (r["odd"] - 1.0)
             r["kickoff_fmt"] = _fmt_kickoff(r.get("commence_time") or "")
+        ops = scheduler.status()
+        if ops.get("last_settle_at"):
+            ops["last_settle_fmt"] = _fmt_kickoff(ops["last_settle_at"])[6:]
         return render_template(
             "dashboard.html",
             stats=store.stats(),
@@ -193,7 +198,7 @@ def create_app() -> Flask:
             recommendations=recs,
             sugg_stats=store.suggestions_stats(),
             ref_bankroll=ref_bankroll,
-            ops=scheduler.status(),
+            ops=ops,
         )
 
     @app.route("/predict")
