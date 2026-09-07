@@ -461,7 +461,12 @@ def create_app() -> Flask:
     @app.route("/api/ops-status")
     def api_ops_status():
         """Estado da operacao continua 24x7 (monitoramento/health)."""
-        return jsonify(scheduler.status())
+        data = scheduler.status()
+        try:
+            data["store"] = store.store_health()
+        except Exception as exc:  # noqa: BLE001 - health nunca deve quebrar
+            data["store"] = {"error": str(exc)}
+        return jsonify(data)
 
     @app.route("/api/value-scan")
     def api_value_scan():

@@ -14,8 +14,6 @@ from dotenv import load_dotenv
 # Caminhos base
 # ---------------------------------------------------------------------------
 PROJECT_ROOT = Path(__file__).resolve().parent.parent
-# Permite apontar o banco/dados para um volume persistente (ex.: /data no deploy)
-# sem mexer no codigo. Default: pasta local do subprojeto.
 DATA_DIR = Path(os.getenv("BETFLOW_DATA_DIR", str(PROJECT_ROOT / "data")))
 RAW_DIR = DATA_DIR / "raw"
 PROCESSED_DIR = DATA_DIR / "processed"

@@ -19,6 +19,8 @@ from pathlib import Path
 from typing import Any
 
 from config import settings
+from betflow.web import db
+from betflow.web.db import BACKEND
 
 DB_PATH = settings.DATA_DIR / "betflow.db"
 
@@ -221,14 +223,31 @@ def _utcnow() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
-def get_conn(db_path: Path | str = DB_PATH) -> sqlite3.Connection:
-    conn = sqlite3.connect(db_path)
-    conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA foreign_keys = ON;")
-    return conn
+def get_conn(db_path: Path | str = DB_PATH) -> Any:
+    """Abre uma conexao no backend ativo (SQLite local ou Postgres em prod)."""
+    return db.get_conn(db_path)
+
+
+def _init_db_postgres() -> None:
+    """Cria o schema no Postgres e semeia usuario/banca padrao."""
+    db.init_pg_schema()
+    with get_conn() as conn:
+        conn.execute(
+            "INSERT INTO users (id, email, name, created_at) VALUES (?,?,?,?) "
+            "ON CONFLICT (id) DO NOTHING;",
+            (DEFAULT_USER_ID, "local@betflow", "Usuario local", _utcnow()),
+        )
+        conn.execute(
+            "INSERT INTO suggestions_bankroll (user_id, initial, created_at) "
+            "VALUES (?,?,?) ON CONFLICT (user_id) DO NOTHING;",
+            (DEFAULT_USER_ID, 1000.0, _utcnow()),
+        )
 
 
 def init_db(db_path: Path | str = DB_PATH) -> None:
+    if BACKEND == "postgres":
+        _init_db_postgres()
+        return
     with get_conn(db_path) as conn:
         conn.executescript(_SCHEMA)   # cria tabelas que faltam (IF NOT EXISTS)
         # cria as tabelas do historico caso o schema base nao as tenha (antigos)
@@ -304,18 +323,22 @@ def add_bet(bet: BetInput, db_path: Path | str = DB_PATH) -> int:
         raise ValueError("odd decimal deve ser > 1.0")
     if bet.stake <= 0:
         raise ValueError("stake deve ser > 0")
+    sql = (
+        """INSERT INTO bets
+           (user_id, created_at, division, sport_key, event_id,
+            commence_time, home_team, away_team, market, selection,
+            odd, stake, model_prob, ev, edge, status, pnl)
+           VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'PENDING', 0.0)"""
+    )
+    params = (bet.user_id, _utcnow(), bet.division, bet.sport_key, bet.event_id,
+              bet.commence_time, bet.home_team, bet.away_team, bet.market,
+              bet.selection, float(bet.odd), float(bet.stake),
+              bet.model_prob, bet.ev, bet.edge)
     with get_conn(db_path) as conn:
-        cur = conn.execute(
-            """INSERT INTO bets
-               (user_id, created_at, division, sport_key, event_id,
-                commence_time, home_team, away_team, market, selection,
-                odd, stake, model_prob, ev, edge, status, pnl)
-               VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?, 'PENDING', 0.0);""",
-            (bet.user_id, _utcnow(), bet.division, bet.sport_key, bet.event_id,
-             bet.commence_time, bet.home_team, bet.away_team, bet.market,
-             bet.selection, float(bet.odd), float(bet.stake),
-             bet.model_prob, bet.ev, bet.edge),
-        )
+        if BACKEND == "postgres":
+            cur = conn.execute(sql + " RETURNING id;", params)
+            return int(cur.fetchone()["id"])
+        cur = conn.execute(sql + ";", params)
         return int(cur.lastrowid)
 
 
@@ -784,4 +807,16 @@ def stats(db_path: Path | str = DB_PATH, *,
         "n_lost": lost,
         "n_void": agg["void"] or 0,
         "hit_rate": (won / settled) if settled else None,
+    }
+
+
+def store_health(db_path: Path | str = DB_PATH) -> dict[str, Any]:
+    """Diagnostico do armazenamento: backend ativo e contagens (para health)."""
+    with get_conn(db_path) as conn:
+        s = conn.execute("SELECT COUNT(*) AS n FROM suggestions;").fetchone()
+        b = conn.execute("SELECT COUNT(*) AS n FROM bets;").fetchone()
+    return {
+        "backend": BACKEND,
+        "suggestions": int(s["n"]),
+        "bets": int(b["n"]),
     }
