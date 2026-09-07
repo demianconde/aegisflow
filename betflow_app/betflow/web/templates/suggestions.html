@@ -2,10 +2,21 @@
 {% block title %}Betflow · Sugestões{% endblock %}
 {% block content %}
 <h1>Sugestões de apostas
-  <span class="hint">— {{ bookmaker }} · 7 ligas · via The Odds API</span></h1>
+  <span class="hint">— {{ bookmaker }} · {{ selected_leagues|length }} campeonato(s) · via The Odds API</span></h1>
 
 <div class="card">
   <form method="get" action="{{ url_for('suggestions_page') }}" class="row">
+    <div>
+      <label>Campeonatos</label>
+      <select name="league" multiple size="4">
+        {% for code in leagues %}
+        <option value="{{ code }}" {{ 'selected' if code in selected_leagues else '' }}>
+          {{ league_names[code].name }}
+        </option>
+        {% endfor %}
+      </select>
+      <div class="hint">Segure Ctrl/Cmd para selecionar vários.</div>
+    </div>
     <div>
       <label>Janela</label>
       <select name="days">
@@ -27,8 +38,9 @@
       <button type="submit" name="scan" value="1">⚡ Gerar sugestões</button>
     </div>
     <div class="hint" style="flex:1;align-self:center">
-      Consome ~1 crédito por liga (7 no total). Edge mín.
+      Consome ~1 crédito por liga selecionada. Edge mín.
       {{ (min_edge*100)|round(1) }}% · Kelly {{ (kelly*100)|round(0) }}%.
+      {% if did_scan %}<br>💾 {{ saved_count }} sugestão(ões) salva(s) no track record.{% endif %}
     </div>
   </form>
 </div>
@@ -64,7 +76,7 @@
       <span class="ko">{{ s.commence_time_fmt or s.commence_time }}</span>
     </div>
     <div class="sugg-match">{{ s.home }} <span class="x">×</span> {{ s.away }}</div>
-    <div class="sugg-sel">{{ s.selection }}
+    <div class="sugg-rec">🎯 Apostar em <strong>{{ s.selection }}</strong>
       <span class="src src-{{ s.source }}">{{ s.source }}</span></div>
 
     <div class="sugg-metrics">
@@ -116,6 +128,11 @@
 
 {% else %}
 {# MODO FIXTURES: todos os jogos sem treinar modelos #}
+<div class="card hint mt">
+  Modo agenda: aqui só listamos os jogos e odds da {{ bookmaker }}.
+  Clique em <b>Gerar sugestões</b> para que o modelo indique
+  <strong>em quem apostar</strong> e salve as recomendações no track record.
+</div>
 {% if result.suggestions %}
 <div class="card mt">
   <table class="fixture-table">
@@ -150,7 +167,8 @@
 {% endif %}
 
 {% elif not did_scan and not error %}
-<div class="card hint mt">Carregando jogos futuros das 7 ligas-alvo...
-  Clique em <b>Gerar sugestões</b> para filtrar apenas apostas de valor na {{ bookmaker }}.</div>
+<div class="card hint mt">Selecione os campeonatos e clique em <b>Gerar sugestões</b>
+  para ver em quem apostar e registrar as recomendações no track record.
+  O modo agenda (sem clicar no botão) mostra apenas os jogos futuros.</div>
 {% endif %}
 {% endblock %}

@@ -74,7 +74,9 @@ def _settle_suggestions_auto(user_id: int = store.DEFAULT_USER_ID,
                 skipped += 1
                 continue
             result = scores._resolve_1x2(s["market"], info["hs"], info["as"])
-            store.settle_suggestion(s["id"], result, auto=True)
+            store.settle_suggestion(s["id"], result,
+                                    home_score=info.get("hs"),
+                                    away_score=info.get("as"), auto=True)
             settled += 1
             won += result == "WON"
             lost += result == "LOST"
@@ -275,24 +277,32 @@ def create_app() -> Flask:
 
     @app.route("/suggestions")
     def suggestions_page():
-        """Sugestoes de apostas futuras (7 ligas, odds da Betano via Odds API)."""
-        result, error = None, None
+        """Sugestoes de apostas futuras (odds da Betano via Odds API)."""
+        result, error, saved_count = None, None, 0
         show_suggestions = request.args.get("scan") == "1"
         days = int(request.args.get("days", 7) or 7)
         today_only = request.args.get("today") == "1"
+        selected_leagues = [
+            code for code in request.args.getlist("league")
+            if code in settings.TARGET_LEAGUES
+        ]
+        if not selected_leagues:
+            selected_leagues = list(settings.TARGET_LEAGUES)
+
         if not engine.odds_api_enabled:
             error = ("The Odds API desativada: defina BETFLOW_ODDS_API_KEY no "
                      ".env para gerar sugestoes.")
         elif show_suggestions:
             try:
                 result = suggest.suggest(days=days, today_only=today_only,
+                                         leagues=selected_leagues,
                                          calibration="platt",
                                          calibration_min_samples=20)
                 # Persiste as sugestoes no track record (desempenho historico)
-                store.save_suggestions(
+                saved_count = store.save_suggestions(
                     result.suggestions, bookmaker=settings.PREFERRED_BOOKMAKER,
                     days=days, today_only=today_only,
-                    leagues=settings.TARGET_LEAGUES,
+                    leagues=selected_leagues,
                     quota_remaining=result.quota_remaining)
             except Exception as exc:  # noqa: BLE001
                 error = f"Falha ao gerar sugestoes: {exc}"
@@ -300,16 +310,17 @@ def create_app() -> Flask:
             # Modo leve: mostra os proximos jogos sem treinar modelos.
             try:
                 result = _upcoming_fixtures_for_page(
-                    leagues=settings.TARGET_LEAGUES,
+                    leagues=selected_leagues,
                     days=days, today_only=today_only)
             except Exception as exc:  # noqa: BLE001
                 error = f"Falha ao carregar jogos: {exc}"
         return render_template(
             "suggestions.html", result=result, error=error,
-            did_scan=show_suggestions,
+            did_scan=show_suggestions, saved_count=saved_count,
             days=days, today_only=today_only, stats=store.stats(),
             bookmaker=settings.PREFERRED_BOOKMAKER,
             min_edge=settings.MIN_EDGE, kelly=settings.KELLY_FRACTION,
+            selected_leagues=selected_leagues,
             leagues=settings.TARGET_LEAGUES, league_names=settings.LEAGUES)
 
     # ------------------------------------------------------------------
@@ -318,10 +329,19 @@ def create_app() -> Flask:
     @app.route("/history")
     def history_page():
         """Desempenho historico das sugestoes do modelo (track record)."""
-        stats = store.suggestions_stats()
-        suggestions = store.list_suggestions()
+        league_filter = request.args.get("league", "").strip().upper()
+        status_filter = request.args.get("status", "").strip().upper()
+        stats = store.suggestions_stats(
+            division=league_filter if league_filter else None)
+        suggestions = store.list_suggestions(
+            division=league_filter if league_filter else None,
+            status=status_filter if status_filter else None)
+        by_league = store.suggestions_stats_by_league()
         return render_template("history.html", stats=stats,
-                               suggestions=suggestions,
+                               suggestions=suggestions, by_league=by_league,
+                               league_filter=league_filter,
+                               status_filter=status_filter,
+                               league_names=settings.LEAGUES,
                                bookmaker=settings.PREFERRED_BOOKMAKER)
 
     @app.route("/settle-suggestions", methods=["POST"])

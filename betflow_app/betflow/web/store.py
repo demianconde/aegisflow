@@ -91,6 +91,8 @@ CREATE TABLE IF NOT EXISTS suggestions (
     edge          REAL,
     source        TEXT,               -- modelo | mercado
     stake_frac    REAL,               -- fracao de kelly (ex.: 0.02)
+    home_score    INTEGER,
+    away_score    INTEGER,
     status        TEXT NOT NULL DEFAULT 'PENDING',
     pnl           REAL NOT NULL DEFAULT 0.0,
     auto_settled  INTEGER NOT NULL DEFAULT 0,
@@ -131,6 +133,8 @@ _MIGRATIONS = [
     "ALTER TABLE bets ADD COLUMN event_id TEXT",
     "ALTER TABLE bets ADD COLUMN commence_time TEXT",
     "ALTER TABLE bets ADD COLUMN auto_settled INTEGER NOT NULL DEFAULT 0",
+    "ALTER TABLE suggestions ADD COLUMN home_score INTEGER",
+    "ALTER TABLE suggestions ADD COLUMN away_score INTEGER",
 ]
 
 
@@ -164,6 +168,8 @@ CREATE TABLE IF NOT EXISTS suggestions (
     edge          REAL,
     source        TEXT,
     stake_frac    REAL,
+    home_score    INTEGER,
+    away_score    INTEGER,
     status        TEXT NOT NULL DEFAULT 'PENDING',
     pnl           REAL NOT NULL DEFAULT 0.0,
     auto_settled  INTEGER NOT NULL DEFAULT 0,
@@ -417,6 +423,8 @@ def list_pending_suggestions(db_path: Path | str = DB_PATH, *,
 
 
 def settle_suggestion(suggestion_id: int, status: str,
+                      home_score: int | None = None,
+                      away_score: int | None = None,
                       db_path: Path | str = DB_PATH, *,
                       auto: bool = False) -> None:
     """Liquida uma sugestao e calcula o P&L usando stake fracao da banca."""
@@ -442,9 +450,10 @@ def settle_suggestion(suggestion_id: int, status: str,
             pnl = 0.0
 
         conn.execute(
-            "UPDATE suggestions SET status=?, pnl=?, auto_settled=?, settled_at=? "
-            "WHERE id = ?;",
-            (status, float(pnl), 1 if auto else 0, _utcnow(), suggestion_id),
+            "UPDATE suggestions SET status=?, pnl=?, auto_settled=?, settled_at=?, "
+            "home_score=?, away_score=? WHERE id = ?;",
+            (status, float(pnl), 1 if auto else 0, _utcnow(),
+             home_score, away_score, suggestion_id),
         )
 
 
@@ -509,21 +518,31 @@ def save_suggestions(suggestions: list[dict[str, Any]],
     inserted = 0
     with get_conn(db_path) as conn:
         for s in suggestions:
+            division = s.get("league_code") or s.get("division") or ""
+            if not division:
+                continue
+            event_id = s.get("event_id")
+            # Fallback para chave unica caso a API nao retorne event_id.
+            if not event_id:
+                event_id = (
+                    f"{s.get('home','')}|{s.get('away','')}|"
+                    f"{s.get('commence_time','')}|{s.get('market','')}"
+                )
             cur = conn.execute(
                 """INSERT INTO suggestions
                    (user_id, generated_at, division, sport_key, event_id,
                     commence_time, home_team, away_team, market, selection,
                     side, bookmaker, odd, model_prob, implied_prob, ev, edge,
-                    source, stake_frac, status, pnl)
-                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDING',0.0)
+                    source, stake_frac, home_score, away_score, status, pnl)
+                   VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,'PENDING',0.0)
                    ON CONFLICT(user_id, event_id, market) DO NOTHING;""",
-                (user_id, scanned_at, s.get("league_code", s.get("division")),
-                 s.get("sport_key"), s.get("event_id"), s.get("commence_time"),
+                (user_id, scanned_at, division,
+                 s.get("sport_key"), event_id, s.get("commence_time"),
                  s.get("home"), s.get("away"), s.get("market"),
                  s.get("selection"), s.get("side"), bookmaker,
                  float(s["odd"]), s.get("prob"), s.get("implied"),
                  s.get("ev"), s.get("edge"), s.get("source"),
-                 s.get("stake_frac")),
+                 s.get("stake_frac"), None, None),
             )
             inserted += cur.rowcount
         conn.execute(
@@ -540,20 +559,71 @@ def save_suggestions(suggestions: list[dict[str, Any]],
 
 
 def list_suggestions(status: str | None = None,
+                     division: str | None = None,
                      db_path: Path | str = DB_PATH, *,
                      user_id: int = DEFAULT_USER_ID,
                      order: str = "generated_at DESC, id DESC"
                      ) -> list[dict[str, Any]]:
-    """Lista todas as sugestoes do track record."""
+    """Lista sugestoes do track record, com filtros opcionais."""
     q = "SELECT * FROM suggestions WHERE user_id = ?"
     params: list[Any] = [user_id]
     if status:
         q += " AND status = ?"
         params.append(status.upper())
+    if division:
+        q += " AND division = ?"
+        params.append(division.upper())
     q += f" ORDER BY {order};"
     with get_conn(db_path) as conn:
         rows = conn.execute(q, tuple(params)).fetchall()
     return [dict(r) for r in rows]
+
+
+def suggestions_stats_by_league(db_path: Path | str = DB_PATH, *,
+                                user_id: int = DEFAULT_USER_ID,
+                                min_samples: int = 1
+                                ) -> list[dict[str, Any]]:
+    """Taxa de acerto e P&L por campeonato no track record."""
+    with get_conn(db_path) as conn:
+        rows = conn.execute(
+            """SELECT
+                 division,
+                 COUNT(*)                                          AS total,
+                 SUM(CASE WHEN status='PENDING' THEN 1 ELSE 0 END) AS pending,
+                 SUM(CASE WHEN status='WON'  THEN 1 ELSE 0 END)    AS won,
+                 SUM(CASE WHEN status='LOST' THEN 1 ELSE 0 END)    AS lost,
+                 SUM(CASE WHEN status='VOID' THEN 1 ELSE 0 END)    AS void,
+                 COALESCE(SUM(pnl), 0.0)                           AS pnl,
+                 COALESCE(SUM(CASE WHEN status IN ('WON','LOST')
+                                   THEN ABS(pnl) ELSE 0 END), 0.0) AS turnover
+               FROM suggestions WHERE user_id = ?
+               GROUP BY division
+               ORDER BY total DESC;""", (user_id,)
+        ).fetchall()
+
+    result: list[dict[str, Any]] = []
+    for r in rows:
+        total = r["total"] or 0
+        won = r["won"] or 0
+        lost = r["lost"] or 0
+        settled = won + lost
+        pnl = float(r["pnl"] or 0.0)
+        turnover = float(r["turnover"] or 0.0)
+        if total >= min_samples:
+            result.append({
+                "division": r["division"],
+                "name": settings.LEAGUES.get(r["division"], {}).get("name", r["division"]),
+                "total": total,
+                "pending": r["pending"] or 0,
+                "won": won,
+                "lost": lost,
+                "void": r["void"] or 0,
+                "pnl": pnl,
+                "turnover": turnover,
+                "yield": (pnl / turnover) if turnover else None,
+                "hit_rate": (won / settled) if settled else None,
+            })
+    return result
 
 
 # ---------------------------------------------------------------------------
@@ -561,6 +631,7 @@ def list_suggestions(status: str | None = None,
 # ---------------------------------------------------------------------------
 def suggestions_stats(db_path: Path | str = DB_PATH, *,
                        user_id: int = DEFAULT_USER_ID,
+                       division: str | None = None,
                        start_bankroll: float = 1000.0
                        ) -> dict[str, Any]:
     """Metricas de desempenho do track record de sugestoes.
@@ -569,9 +640,15 @@ def suggestions_stats(db_path: Path | str = DB_PATH, *,
     da banca, e medias de edge/EV das sugestoes ganhadoras/perdedoras.
     """
     initial = start_bankroll
+    params: list[Any] = [user_id]
+    where = "WHERE user_id = ?"
+    if division:
+        where += " AND division = ?"
+        params.append(division.upper())
+
     with get_conn(db_path) as conn:
         agg = conn.execute(
-            """SELECT
+            f"""SELECT
                  COUNT(*)                                          AS total,
                  SUM(CASE WHEN status='PENDING' THEN 1 ELSE 0 END) AS pending,
                  SUM(CASE WHEN status='WON'  THEN 1 ELSE 0 END)    AS won,
@@ -585,13 +662,13 @@ def suggestions_stats(db_path: Path | str = DB_PATH, *,
                  COALESCE(AVG(CASE WHEN status='LOST' THEN ev END), 0) AS avg_ev_lost,
                  COALESCE(AVG(CASE WHEN status='WON' THEN edge END), 0) AS avg_edge_won,
                  COALESCE(AVG(CASE WHEN status='LOST' THEN edge END), 0) AS avg_edge_lost
-               FROM suggestions WHERE user_id = ?;""", (user_id,)
+               FROM suggestions {where};""", tuple(params)
         ).fetchone()
 
         equity_rows = conn.execute(
-            """SELECT generated_at, pnl FROM suggestions
-               WHERE user_id = ? AND status IN ('WON','LOST')
-               ORDER BY generated_at, id;""", (user_id,)
+            f"""SELECT generated_at, pnl FROM suggestions
+               {where} AND status IN ('WON','LOST')
+               ORDER BY generated_at, id;""", tuple(params)
         ).fetchall()
 
     total = agg["total"] or 0

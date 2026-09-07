@@ -76,6 +76,40 @@
 {% endif %}
 
 <div class="card mt filter-bar">
+  <form method="get" action="{{ url_for('history_page') }}" class="row">
+    <div>
+      <label>Campeonato</label>
+      <select name="league">
+        <option value="">Todos</option>
+        {% for code in league_names %}
+        <option value="{{ code }}" {{ 'selected' if league_filter == code else '' }}>
+          {{ league_names[code].name }}
+        </option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Status</label>
+      <select name="status">
+        <option value="">Todos</option>
+        <option value="PENDING" {{ 'selected' if status_filter == 'PENDING' else '' }}>Pendente</option>
+        <option value="WON" {{ 'selected' if status_filter == 'WON' else '' }}>Green</option>
+        <option value="LOST" {{ 'selected' if status_filter == 'LOST' else '' }}>Red</option>
+        <option value="VOID" {{ 'selected' if status_filter == 'VOID' else '' }}>Void</option>
+      </select>
+    </div>
+    <div style="flex:0">
+      <label>&nbsp;</label>
+      <button type="submit">Filtrar</button>
+    </div>
+    <div style="flex:0">
+      <label>&nbsp;</label>
+      <a href="{{ url_for('history_page') }}"><button type="button" class="ghost">Limpar</button></a>
+    </div>
+  </form>
+</div>
+
+<div class="card mt filter-bar">
   <form method="post" action="{{ url_for('settle_suggestions') }}" class="row">
     <div style="flex:0">
       <button type="submit">🔄 Liquidar sugestões automaticamente</button>
@@ -86,13 +120,38 @@
   </form>
 </div>
 
-<h2 class="mt">Histórico de sugestões</h2>
+{% if by_league %}
+<h2 class="mt">Desempenho por campeonato</h2>
+<div class="card">
+<table>
+  <thead><tr>
+    <th>Campeonato</th><th>Total</th><th>Green</th><th>Red</th><th>Taxa de acerto</th><th>P&amp;L</th><th>Yield</th>
+  </tr></thead>
+  <tbody>
+  {% for l in by_league %}
+    <tr>
+      <td><a href="{{ url_for('history_page', league=l.division) }}">{{ l.name }}</a></td>
+      <td>{{ l.total }}</td>
+      <td class="pos">{{ l.won }}</td>
+      <td class="neg">{{ l.lost }}</td>
+      <td><strong>{{ l.hit_rate | pct }}</strong></td>
+      <td class="{{ 'pos' if l.pnl > 0 else ('neg' if l.pnl < 0 else '') }}">{{ l.pnl | money }}</td>
+      <td>{{ l.yield | pct }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% endif %}
+
+<h2 class="mt">Histórico de sugestões x resultados</h2>
 <div class="card">
 {% if suggestions %}
 <table>
   <thead><tr>
-    <th>Data</th><th>Liga</th><th>Jogo</th><th>Selecao</th><th>Odd</th>
-    <th>Prob</th><th>Edge</th><th>EV</th><th>Stake</th><th>Status</th><th>P&amp;L</th>
+    <th>Data</th><th>Liga</th><th>Jogo</th><th>Resultado</th><th>Selecao</th>
+    <th>Odd</th><th>Prob</th><th>Edge</th><th>EV</th><th>Stake</th>
+    <th>Status</th><th>P&amp;L</th>
   </tr></thead>
   <tbody>
   {% for s in suggestions %}
@@ -100,6 +159,11 @@
       <td class="hint">{{ s.generated_at[:10] }}</td>
       <td><span class="league-pill">{{ s.division }}</span></td>
       <td>{{ s.home_team }} <span class="x">×</span> {{ s.away_team }}</td>
+      <td class="hint">
+        {% if s.home_score is not none and s.away_score is not none %}
+          {{ s.home_score }} × {{ s.away_score }}
+        {% else %}—{% endif %}
+      </td>
       <td>{{ s.selection }}</td>
       <td>{{ '%.2f'|format(s.odd) }}</td>
       <td>{{ (s.model_prob * 100)|round(1) }}%</td>

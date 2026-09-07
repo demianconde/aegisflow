@@ -137,6 +137,10 @@ button.sm { padding: 5px 10px; font-size: 13px; }
 }
 
 /* ---- página de desempenho historico ---- */
+.sugg-rec { color: var(--green); font-size: 15px; margin: 6px 0 10px; }
+.sugg-rec strong { color: #fff; }
+select[multiple] { min-height: 90px; }
+.filter-bar select[multiple] { min-width: 220px; }
 .history-header { align-items: center; }
 .history-header .kpi { text-align: center; }
 .history-header .kpi .value { font-size: 28px; }
