@@ -1,0 +1,32 @@
+﻿== Backtest walk-forward: liga BSA ==
+Jogos carregados: 2145 (2021-05-29 -> 2026-09-01)
+Config: min_edge=0.03 kelly=0.25 min_train=200 retrain=20 stake=Kelly
+Treinando walk-forward (sem lookahead)... pode levar ~1min.
+
+Jogos avaliados: 1945
+Apostas de valor feitas: 1176
+----------------------------------------------------
+Banca:      100.00 -> 0.08
+Lucro:      -99.92 u
+ROI:        -99.92%  (sobre a banca)
+Yield:      -26.02%  (sobre o volume apostado)
+Turnover:   384.06 u
+Hit rate:   26.7%
+Max DD:     100.0%
+Brier:      0.2064  (0=perfeito, 0.25=chute 50/50)
+----------------------------------------------------
+BASELINE favorito (1u/jogo): ROI=-48.28% yield=-2.51% em 1927 jogos
+----------------------------------------------------
+Calibracao (previsto vs. observado):
+  faixa 0.0-0.1   n=30   previsto=  8.2% observado= 16.7%  <-- desvio
+  faixa 0.1-0.2   n=651  previsto= 16.8% observado= 18.3%
+  faixa 0.2-0.3   n=2540 previsto= 25.6% observado= 25.9%
+  faixa 0.3-0.4   n=913  previsto= 33.9% observado= 35.2%
+  faixa 0.4-0.5   n=768  previsto= 45.4% observado= 41.0%
+  faixa 0.5-0.6   n=628  previsto= 54.5% observado= 56.5%
+  faixa 0.6-0.7   n=212  previsto= 63.8% observado= 62.3%
+  faixa 0.7-0.8   n=37   previsto= 73.0% observado= 56.8%  <-- desvio
+  faixa 0.8-0.9   n=2    previsto= 81.5% observado=100.0%  <-- desvio
+
+VEREDITO:
+  ROI/yield NAO positivos -> sem edge real nesta configuracao. E o resultado mais comum e honesto: bater a casa e dificil.

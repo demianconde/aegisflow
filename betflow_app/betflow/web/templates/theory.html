@@ -1,0 +1,172 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Como funciona{% endblock %}
+{% block content %}
+<h1>Como o Betflow funciona <span class="hint">— a teoria por trás do sistema</span></h1>
+
+<div class="card theory-intro">
+  <p>O <strong>Betflow</strong> não tenta adivinhar o futuro. Ele procura
+  <strong>apostas de valor</strong>: situações em que a probabilidade estimada
+  pelo modelo é maior do que a probabilidade implícita na odd oferecida pela
+  casa. Quando isso acontece de forma consistente, o apostador tem um
+  <em>edge</em> estatístico — pequeno, realista e sujeito a drawdowns, mas
+  mensurável.</p>
+</div>
+
+<h2>1. Arquitetura de duas fontes</h2>
+<div class="grid cols-2">
+  <div class="card">
+    <h3>📚 Fonte histórica</h3>
+    <p><code>football-data.co.uk</code> fornece CSVs gratuitos com resultados,
+    gols, escanteios, cartões e odds de fechamento. Usamos esses dados para
+    <strong>treinar e validar</strong> os modelos estatísticos.</p>
+  </div>
+  <div class="card">
+    <h3>⚡ Fonte de operação</h3>
+    <p>A <strong>The Odds API</strong> entrega odds ao vivo/futuras de várias
+    casas (incluindo Betano). O motor compara essas odds com as probabilidades
+    do modelo para encontrar valor em tempo real.</p>
+  </div>
+</div>
+
+<h2>2. Modelos estatísticos</h2>
+
+<div class="card theory-section">
+  <h3>Dixon-Coles (resultado e gols)</h3>
+  <p>Modelo bivariado de Poisson com dois ajustes importantes:</p>
+  <ul>
+    <li><strong>Decaimento temporal</strong>: jogos mais recentes pesam mais
+      (xi ≈ 0,0018) para refletir forma atual, elencos e mudanças de técnico.</li>
+    <li><strong>Parâmetro ρ (rho)</strong>: corrige a dependência entre os
+      placares baixos — empates 0×0 e 1×1 são mais comuns do que dois Poissons
+      independentes preveriam.</li>
+  </ul>
+  <p>A partir das forças ofensivas/defensivas estimadas, calculamos:</p>
+  <ul>
+    <li>1X2 (vitória mandante / empate / vitória visitante)</li>
+    <li>Over/Under 2,5 gols</li>
+    <li>Ambas marcam (BTTS)</li>
+  </ul>
+</div>
+
+<div class="grid cols-2">
+  <div class="card theory-section">
+    <h3>Escanteios — Binomial Negativa</h3>
+    <p>Cantos são <strong>superdispersos</strong> (variância maior que a média),
+    então um Poisson simples subestima a cauda. A binomial negativa captura
+    melhor a frequência de jogos com muitos ou poucos escanteios e gera
+    probabilidades para linhas como Over 9,5 / 10,5.</p>
+  </div>
+  <div class="card theory-section">
+    <h3>Cartões — Poisson + árbitro</h3>
+    <p>Cartões amarelos são modelados por Poisson. Incluímos o efeito do
+    árbitro quando disponível: alguns árbitros têm média histórica de cartões
+    visivelmente acima ou abaixo da liga.</p>
+  </div>
+</div>
+
+<h2>3. Da odd ao valor esperado</h2>
+
+<div class="card theory-section">
+  <p>Uma odd <code>o</code> implica uma probabilidade <code>1 / o</code>. O
+  conjunto de odds de um mercado carrega o <strong>overround</strong> (margem da
+  casa), então as probabilidades implícitas somam mais do que 100%.</p>
+
+  <p>Usamos o método <strong>Shin</strong> para remover a margem e obter
+  probabilidades justas. Depois comparamos com a probabilidade do modelo
+  <code>p</code>:</p>
+
+  <div class="formula">
+    EV = p × odd − 1 &nbsp;&nbsp;|&nbsp;&nbsp; edge = p − 1/odd
+  </div>
+
+  <p>O Betflow só recomenda uma aposta quando <strong>EV &gt; 0</strong> e
+  <strong>edge ≥ 3%</strong>. Isso deixa uma folga para erros de modelo e
+  movimentos de mercado.</p>
+</div>
+
+<h2>4. Gestão de banca — Kelly fracionário</h2>
+
+<div class="card theory-section">
+  <p>O critério de Kelly define a fração ótima da banca a apostar em uma
+  oportunidade com edge conhecido:</p>
+
+  <div class="formula">
+    f* = (b·p − q) / b &nbsp;&nbsp;onde&nbsp;&nbsp; b = odd − 1,&nbsp; q = 1 − p
+  </div>
+
+  <p>Kelly pleno é volátil demais para apostas esportivas (os erros de modelo
+  são grandes), então usamos <strong>1/4 Kelly</strong>. Com uma banca de
+  R$ 1.000 e stake sugerido de 2%, o valor da aposta seria R$ 20.</p>
+
+  <p>Importante: Kelly pressupõe que você conhece a probabilidade real. Como
+  usamos uma estimativa de modelo, o fracionamento é uma proteção contra o
+  <em>overbetting</em>.</p>
+</div>
+
+<h2>5. Calibração de probabilidades</h2>
+
+<div class="card theory-section">
+  <p>Modelos estatísticos podem estar <strong>descalibrados</strong>: quando
+  dizem "50%", o evento pode acontecer 40% ou 60% das vezes. Isso invalida o
+  EV. O Betflow corrige isso com:</p>
+  <ul>
+    <li><strong>Regressão Platt</strong>: ajusta uma sigmóide nas probabilidades
+      do modelo usando resultados históricos.</li>
+    <li><strong>Regressão isotônica</strong>: ajuste monotônico não paramétrico,
+      útil quando a descalibração não é linear.</li>
+  </ul>
+  <p>A calibração é treinada apenas em apostas já liquidadas do próprio
+  tracker, sem usar informação futura (sem lookahead). Quando há poucas
+  amostras (menos de 20), o sistema usa a probabilidade do modelo crua.</p>
+</div>
+
+<h2>6. Backtest walk-forward</h2>
+
+<div class="card theory-section">
+  <p>O teste mais honesto de um sistema de apostas é o
+  <strong>walk-forward</strong>: treinamos o modelo com dados até uma data
+  <code>t</code>, fazemos as apostas do dia seguinte, registramos o resultado
+  real, e repetimos. Isso evita o vício de olhar para o futuro.</p>
+  <p>Métricas acompanhadas:</p>
+  <ul>
+    <li><strong>ROI</strong>: retorno sobre a banca inicial.</li>
+    <li><strong>Yield</strong>: retorno sobre o volume total apostado.</li>
+    <li><strong>Taxa de acerto</strong>: greens / (greens + reds).</li>
+    <li><strong>CLV</strong> (Closing Line Value): se a odd de fechamento caiu
+      após sua entrada, você provavelmente apostou no lado certo do mercado.</li>
+  </ul>
+</div>
+
+<h2>7. Limitações e advertências</h2>
+
+<div class="card theory-warn">
+  <ul>
+    <li>Aposta é risco. O Betflow é uma <strong>ferramenta analítica</strong>,
+      não uma garantia de lucro.</li>
+    <li>O edge realista é pequeno e pode haver sequências longas de perdas
+      (drawdowns).</li>
+    <li>Odds mudam rapidamente. A sugestão do modelo pode perder o valor antes
+      que você registre a aposta.</li>
+    <li>Mercados de escanteios e cartões não têm odds na The Odds API para a
+      Betano; são exibidos como <em>previsões</em>, não como apostas de valor.</li>
+    <li>O sistema não integra automaticamente com a casa. Você registra as
+      apostas manualmente (paper trading).</li>
+  </ul>
+</div>
+
+<h2>8. Fluxo resumido</h2>
+
+<div class="card theory-section">
+  <ol class="flow">
+    <li><strong>Coleta:</strong> baixa CSVs históricos e/ou consome odds ao vivo.</li>
+    <li><strong>Modelagem:</strong> treina Dixon-Coles, NB e Poisson.</li>
+    <li><strong>Calibração:</strong> ajusta probabilidades com histórico real.</li>
+    <li><strong>Scan:</strong> compara modelo × odds da Betano.</li>
+    <li><strong>Filtro:</strong> mantém só apostas com EV positivo e edge ≥ 3%.</li>
+    <li><strong>Stake:</strong> dimensiona pela fração de Kelly (1/4).</li>
+    <li><strong>Tracking:</strong> registra, acompanha e liquida resultados.</li>
+    <li><strong>Aprendizado:</strong> novas apostas liquidadas alimentam a
+      calibração.</li>
+  </ol>
+</div>
+{% endblock %}

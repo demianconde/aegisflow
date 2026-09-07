@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="pt-br">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>{% block title %}Betflow{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">⚽ Betflow <span class="tag">paper trading</span></div>
+    <nav>
+      <a href="{{ url_for('dashboard') }}">Dashboard</a>
+      <a href="{{ url_for('suggestions_page') }}">Sugestões</a>
+      <a href="{{ url_for('history_page') }}">Desempenho histórico</a>
+      <a href="{{ url_for('predict_page') }}">Consultar jogo</a>
+      <a href="{{ url_for('bets_page') }}">Apostas</a>
+      <a href="{{ url_for('theory_page') }}">Como funciona</a>
+    </nav>
+  </header>
+  <main class="container">
+    {% if request.args.get('flash') %}
+      <div class="flash">{{ request.args.get('flash') }}</div>
+    {% endif %}
+    {% block content %}{% endblock %}
+  </main>
+  <footer class="foot">
+    Ferramenta analitica. Aposta e risco; nao ha garantia de lucro. As apostas
+    sao registradas manualmente (nao ha integracao real com casas).
+  </footer>
+</body>
+</html>

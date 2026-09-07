@@ -1,0 +1,125 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Desempenho histórico{% endblock %}
+{% block content %}
+<h1>Desempenho histórico <span class="hint">— track record das recomendações do modelo</span></h1>
+
+<p class="hint">
+  Este painel acompanha todas as sugestões que o sistema gerou, com banca
+  simulada fixa de <strong>R$ 1.000,00</strong>. Cada sugestão usa o stake
+  fracionário de Kelly (1/4 Kelly). As liquidações automáticas buscam os
+  placares na The Odds API.
+</p>
+
+<div class="grid cols-4 mt">
+  <div class="card kpi">
+    <div class="label">Banca inicial</div>
+    <div class="value">{{ stats.initial_bankroll | money }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Banca atual</div>
+    <div class="value {{ 'pos' if stats.current_bankroll >= stats.initial_bankroll else 'neg' }}">
+      {{ stats.current_bankroll | money }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">P&amp;L</div>
+    <div class="value {{ 'pos' if stats.pnl >= 0 else 'neg' }}">
+      {{ stats.pnl | money }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">ROI</div>
+    <div class="value {{ 'pos' if (stats.roi or 0) >= 0 else 'neg' }}">
+      {{ stats.roi | pct }}</div>
+  </div>
+</div>
+
+<div class="grid cols-4 mt">
+  <div class="card kpi"><div class="label">Total de sugestões</div>
+    <div class="value">{{ stats.n_total }}</div></div>
+  <div class="card kpi"><div class="label">Green / Red</div>
+    <div class="value">{{ stats.n_won }} / {{ stats.n_lost }}</div></div>
+  <div class="card kpi"><div class="label">Taxa de acerto</div>
+    <div class="value">{{ stats.hit_rate | pct }}</div></div>
+  <div class="card kpi"><div class="label">Yield</div>
+    <div class="value {{ 'pos' if (stats.yield or 0) >= 0 else 'neg' }}">
+      {{ stats.yield | pct }}</div></div>
+</div>
+
+<div class="grid cols-3 mt">
+  <div class="card kpi"><div class="label">Maior drawdown</div>
+    <div class="value {{ 'neg' if stats.max_drawdown > 0 else '' }}">
+      {{ stats.max_drawdown | pct }}</div></div>
+  <div class="card kpi"><div class="label">Turnover</div>
+    <div class="value">{{ stats.turnover | money }}</div></div>
+  <div class="card kpi"><div class="label">Pendentes</div>
+    <div class="value">{{ stats.n_pending }}</div></div>
+</div>
+
+{% if stats.n_total > 0 and stats.equity_values|length > 1 %}
+<div class="card mt">
+  <h2>Evolução da banca simulada</h2>
+  <div class="equity-wrap">
+    {% set min_eq = stats.equity_values | min %}
+    {% set max_eq = stats.equity_values | max %}
+    {% set range = (max_eq - min_eq) if (max_eq - min_eq) > 0 else 1 %}
+    <div class="equity-chart">
+      {% for v in stats.equity_values %}
+        {% set h = ((v - min_eq) / range * 200) | int %}
+        <div class="equity-bar {{ 'negative' if v < stats.initial_bankroll else '' }}" style="height: {{ h + 20 }}px" title="R$ {{ '%.2f'|format(v) }}"></div>
+      {% endfor %}
+    </div>
+    <div class="equity-labels">
+      <span>{{ stats.equity_labels[0] }}</span>
+      <span>{{ stats.equity_labels[-1] }}</span>
+    </div>
+  </div>
+</div>
+{% endif %}
+
+<div class="card mt filter-bar">
+  <form method="post" action="{{ url_for('settle_suggestions') }}" class="row">
+    <div style="flex:0">
+      <button type="submit">🔄 Liquidar sugestões automaticamente</button>
+    </div>
+    <div class="hint" style="flex:1;align-self:center">
+      Busca placares dos jogos ja gerados e atualiza Green/Red no track record.
+    </div>
+  </form>
+</div>
+
+<h2 class="mt">Histórico de sugestões</h2>
+<div class="card">
+{% if suggestions %}
+<table>
+  <thead><tr>
+    <th>Data</th><th>Liga</th><th>Jogo</th><th>Selecao</th><th>Odd</th>
+    <th>Prob</th><th>Edge</th><th>EV</th><th>Stake</th><th>Status</th><th>P&amp;L</th>
+  </tr></thead>
+  <tbody>
+  {% for s in suggestions %}
+    <tr>
+      <td class="hint">{{ s.generated_at[:10] }}</td>
+      <td><span class="league-pill">{{ s.division }}</span></td>
+      <td>{{ s.home_team }} <span class="x">×</span> {{ s.away_team }}</td>
+      <td>{{ s.selection }}</td>
+      <td>{{ '%.2f'|format(s.odd) }}</td>
+      <td>{{ (s.model_prob * 100)|round(1) }}%</td>
+      <td>{{ (s.edge * 100)|round(1) }}%</td>
+      <td>{{ (s.ev * 100)|round(1) }}%</td>
+      <td>{{ (s.stake_frac * 100)|round(2) }}%</td>
+      <td>
+        {% set cls = {'PENDING':'b-pending','WON':'b-won','LOST':'b-lost','VOID':'b-void'} %}
+        <span class="badge {{ cls[s.status] }}">{{ s.status }}</span>
+      </td>
+      <td class="{{ 'pos' if s.pnl > 0 else ('neg' if s.pnl < 0 else '') }}">
+        {{ '%+.2f'|format(s.pnl) }}</td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="hint">Nenhuma sugestao registrada ainda.
+  Vá em <a href="{{ url_for('suggestions_page') }}">Sugestões</a> e clique em
+  <strong>Gerar sugestões</strong> para popular o track record.</p>
+{% endif %}
+</div>
+{% endblock %}

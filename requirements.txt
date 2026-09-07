@@ -13,3 +13,12 @@ cryptography==44.0.0
 stripe==11.4.1
 structlog==24.4.0
 python-json-logger==3.2.1
+
+# Subprojeto isolado montado em /betflow (WSGI->ASGI + stack propria).
+a2wsgi==1.10.7
+flask==3.1.0
+pandas==3.0.5
+numpy==2.5.3
+scipy==1.18.1
+scikit-learn==1.9.0
+python-dotenv==1.2.2

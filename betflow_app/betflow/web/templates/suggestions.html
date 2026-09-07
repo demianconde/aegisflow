@@ -1,0 +1,156 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Sugestões{% endblock %}
+{% block content %}
+<h1>Sugestões de apostas
+  <span class="hint">— {{ bookmaker }} · 7 ligas · via The Odds API</span></h1>
+
+<div class="card">
+  <form method="get" action="{{ url_for('suggestions_page') }}" class="row">
+    <div>
+      <label>Janela</label>
+      <select name="days">
+        {% for d in [1,2,3,5,7,10] %}
+        <option value="{{ d }}" {{ 'selected' if days==d else '' }}>
+          próximos {{ d }} dias</option>
+        {% endfor %}
+      </select>
+    </div>
+    <div>
+      <label>Somente hoje?</label>
+      <select name="today">
+        <option value="0" {{ 'selected' if not today_only else '' }}>não</option>
+        <option value="1" {{ 'selected' if today_only else '' }}>sim</option>
+      </select>
+    </div>
+    <div style="flex:0">
+      <label>&nbsp;</label>
+      <button type="submit" name="scan" value="1">⚡ Gerar sugestões</button>
+    </div>
+    <div class="hint" style="flex:1;align-self:center">
+      Consome ~1 crédito por liga (7 no total). Edge mín.
+      {{ (min_edge*100)|round(1) }}% · Kelly {{ (kelly*100)|round(0) }}%.
+    </div>
+  </form>
+</div>
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+{% if result %}
+<div class="grid cols-4 mt">
+  <div class="card kpi"><div class="label">Sugestões de valor</div>
+    <div class="value">{{ result.suggestions|length }}</div></div>
+  <div class="card kpi"><div class="label">Ligas varridas</div>
+    <div class="value">{{ result.leagues|length }}</div></div>
+  <div class="card kpi"><div class="label">Cota restante</div>
+    <div class="value">{{ result.quota_remaining if result.quota_remaining is not none else '—' }}</div></div>
+  <div class="card kpi"><div class="label">Banca atual</div>
+    <div class="value">{{ stats.current_bankroll | money }}</div></div>
+</div>
+
+{% if result.errors %}
+<div class="warn mt">
+  {% for e in result.errors %}<div>⚠️ {{ e }}</div>{% endfor %}
+</div>
+{% endif %}
+
+{% if did_scan %}
+{# MODO VALOR: so apostas de valor #}
+{% if result.suggestions %}
+<div class="sugg-grid mt">
+  {% for s in result.suggestions %}
+  <div class="card sugg">
+    <div class="sugg-head">
+      <span class="league-pill">{{ s.league_code }}</span>
+      <span class="ko">{{ s.commence_time_fmt or s.commence_time }}</span>
+    </div>
+    <div class="sugg-match">{{ s.home }} <span class="x">×</span> {{ s.away }}</div>
+    <div class="sugg-sel">{{ s.selection }}
+      <span class="src src-{{ s.source }}">{{ s.source }}</span></div>
+
+    <div class="sugg-metrics">
+      <div><span class="m-label">Odd</span><b>{{ '%.2f'|format(s.odd) }}</b></div>
+      <div><span class="m-label">Prob. modelo</span><b>{{ (s.prob*100)|round(1) }}%</b></div>
+      <div><span class="m-label">Edge</span><b class="pos">+{{ (s.edge*100)|round(1) }}%</b></div>
+      <div><span class="m-label">EV</span><b class="pos">+{{ (s.ev*100)|round(1) }}%</b></div>
+      <div><span class="m-label">Stake sug.</span><b>{{ (s.stake_frac*100)|round(2) }}%</b></div>
+      <div><span class="m-label">Valor</span><b>{{ (s.stake_frac * (stats.current_bankroll or 0)) | money }}</b></div>
+    </div>
+
+    {% if s.stats %}
+    <div class="sugg-stats">
+      <div><span class="tag">Escanteios</span> esp. {{ s.stats.corners.expected }}
+        · O9.5 {{ (s.stats.corners.over['9.5']*100)|round(0) }}%
+        · O10.5 {{ (s.stats.corners.over['10.5']*100)|round(0) }}%</div>
+      <div><span class="tag">Cartões</span> esp. {{ s.stats.cards.expected }}
+        · O3.5 {{ (s.stats.cards.over['3.5']*100)|round(0) }}%
+        · O4.5 {{ (s.stats.cards.over['4.5']*100)|round(0) }}%</div>
+    </div>
+    {% endif %}
+
+    <form method="post" action="{{ url_for('add_bet') }}" class="sugg-form">
+      <input type="hidden" name="home_team" value="{{ s.home }}">
+      <input type="hidden" name="away_team" value="{{ s.away }}">
+      <input type="hidden" name="market" value="{{ s.market }}">
+      <input type="hidden" name="selection" value="{{ s.home }} x {{ s.away }}: {{ s.selection }}">
+      <input type="hidden" name="odd" value="{{ s.odd }}">
+      <input type="hidden" name="division" value="{{ s.league_code }}">
+      <input type="hidden" name="model_prob" value="{{ s.prob }}">
+      <input type="hidden" name="ev" value="{{ s.ev }}">
+      <input type="hidden" name="edge" value="{{ s.edge }}">
+      <input type="hidden" name="sport_key" value="{{ s.sport_key }}">
+      <input type="hidden" name="event_id" value="{{ s.event_id }}">
+      <input type="hidden" name="commence_time" value="{{ s.commence_time }}">
+      <input type="hidden" name="next" value="{{ url_for('bets_page') }}">
+      <input type="number" step="0.01" name="stake" required
+             value="{{ (s.stake_frac * (stats.current_bankroll or 0)) | round(2) }}"
+             placeholder="stake">
+      <button type="submit">Registrar aposta</button>
+    </form>
+  </div>
+  {% endfor %}
+</div>
+{% else %}
+<div class="card hint mt">Nenhuma aposta de valor encontrada nesta janela.
+  Tente uma janela maior ou reduza o edge mínimo.</div>
+{% endif %}
+
+{% else %}
+{# MODO FIXTURES: todos os jogos sem treinar modelos #}
+{% if result.suggestions %}
+<div class="card mt">
+  <table class="fixture-table">
+    <thead>
+      <tr>
+        <th>Data</th>
+        <th>Liga</th>
+        <th>Jogo</th>
+        <th>1</th>
+        <th>X</th>
+        <th>2</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for s in result.suggestions %}
+      <tr>
+        <td>{{ s.commence_time_fmt or s.commence_time }}</td>
+        <td><span class="league-pill">{{ s.league_code }}</span></td>
+        <td>{{ s.home }} <span class="x">×</span> {{ s.away }}</td>
+        <td>{% if s.odds %}{{ '%.2f'|format(s.odds.home) }}{% else %}—{% endif %}</td>
+        <td>{% if s.odds %}{{ '%.2f'|format(s.odds.draw) }}{% else %}—{% endif %}</td>
+        <td>{% if s.odds %}{{ '%.2f'|format(s.odds.away) }}{% else %}—{% endif %}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="card hint mt">Nenhum jogo encontrado nesta janela.
+  Tente uma janela maior.</div>
+{% endif %}
+{% endif %}
+
+{% elif not did_scan and not error %}
+<div class="card hint mt">Carregando jogos futuros das 7 ligas-alvo...
+  Clique em <b>Gerar sugestões</b> para filtrar apenas apostas de valor na {{ bookmaker }}.</div>
+{% endif %}
+{% endblock %}

@@ -1,0 +1,68 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Apostas{% endblock %}
+{% block content %}
+<h1>Historico de apostas</h1>
+
+<div class="grid cols-4">
+  <div class="card kpi"><div class="label">Total</div>
+    <div class="value">{{ stats.n_total }}</div></div>
+  <div class="card kpi"><div class="label">P&amp;L</div>
+    <div class="value {{ 'pos' if stats.pnl >= 0 else 'neg' }}">
+      {{ stats.pnl | money }}</div></div>
+  <div class="card kpi"><div class="label">Yield</div>
+    <div class="value {{ 'pos' if (stats.yield or 0) >= 0 else 'neg' }}">
+      {{ stats.yield | pct }}</div></div>
+  <div class="card kpi"><div class="label">Acerto</div>
+    <div class="value">{{ stats.hit_rate | pct }}</div></div>
+</div>
+
+<div class="card mt">
+{% if bets %}
+<table>
+  <thead><tr><th>#</th><th>Data</th><th>Jogo / selecao</th><th>Mercado</th>
+    <th>Odd</th><th>Stake</th><th>Prob</th><th>EV</th><th>Status</th>
+    <th>P&amp;L</th><th>Acoes</th></tr></thead>
+  <tbody>
+  {% for b in bets %}
+    <tr>
+      <td>{{ b.id }}</td>
+      <td class="hint">{{ b.created_at[:10] }}</td>
+      <td>{{ b.home_team }} x {{ b.away_team }}<br>
+          <span class="hint">{{ b.selection }}</span></td>
+      <td>{{ b.market }}</td>
+      <td>{{ '%.2f' % b.odd }}</td>
+      <td>{{ b.stake | money }}</td>
+      <td>{{ (b.model_prob * 100) | round(1) ~ '%' if b.model_prob else '-' }}</td>
+      <td>{{ '%+.3f' % b.ev if b.ev is not none else '-' }}</td>
+      <td>
+        {% set cls = {'PENDING':'b-pending','WON':'b-won','LOST':'b-lost','VOID':'b-void'} %}
+        <span class="badge {{ cls[b.status] }}">{{ b.status }}</span>
+      </td>
+      <td class="{{ 'pos' if b.pnl > 0 else ('neg' if b.pnl < 0 else '') }}">
+        {{ '%+.2f' % b.pnl }}</td>
+      <td>
+        {% if b.status == 'PENDING' %}
+        <form class="inline" method="post"
+              action="{{ url_for('settle_bet', bet_id=b.id) }}">
+          <input type="hidden" name="status" value="WON">
+          <button class="win sm" type="submit">Green</button></form>
+        <form class="inline" method="post"
+              action="{{ url_for('settle_bet', bet_id=b.id) }}">
+          <input type="hidden" name="status" value="LOST">
+          <button class="lose sm" type="submit">Red</button></form>
+        {% endif %}
+        <form class="inline" method="post"
+              action="{{ url_for('delete_bet', bet_id=b.id) }}"
+              onsubmit="return confirm('Remover aposta {{ b.id }}?')">
+          <button class="ghost sm" type="submit">x</button></form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p class="hint">Nenhuma aposta registrada ainda.
+  <a href="{{ url_for('predict_page') }}">Consultar um jogo →</a></p>
+{% endif %}
+</div>
+{% endblock %}

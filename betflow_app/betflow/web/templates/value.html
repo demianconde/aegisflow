@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Value bets{% endblock %}
+{% block content %}
+<h1>Value bets automaticas <span class="hint">— {{ league_name }}</span></h1>
+
+<div class="card">
+  <div class="row">
+    <div>
+      <label>Liga (modelo treinado)</label>
+      <form method="post" action="{{ url_for('switch_league') }}" class="row">
+        <select name="league" onchange="this.form.submit()">
+          {% for code, cfg in leagues.items() %}
+          <option value="{{ code }}" {{ 'selected' if code == league }}>
+            {{ cfg.name }}</option>
+          {% endfor %}
+        </select>
+        <noscript><button type="submit">Trocar</button></noscript>
+      </form>
+    </div>
+    <div>
+      <label>Casa de aposta</label>
+      <div>{{ bookmaker }}</div>
+    </div>
+    <div style="flex:0">
+      <a class="btn-link" href="{{ url_for('value_page', scan=1, bookmaker=bookmaker) }}">
+        Varrer jogos agora →</a>
+    </div>
+  </div>
+  <p class="hint mt">Ao varrer, o sistema busca as odds da <b>{{ bookmaker }}</b>
+  para os proximos jogos, compara com a probabilidade do modelo e lista apenas
+  onde ha valor (EV &gt; 0 e edge &ge; {{ min_edge | pct }}). Consome 1 credito
+  da The Odds API por varredura.</p>
+</div>
+
+{% if not has_stats %}
+<div class="error" style="background:rgba(230,180,60,.12);border-color:#c9a227;color:#f0d98a">
+  <b>Aviso honesto (estatistico):</b> para esta liga o modelo usa apenas
+  gols + recencia (sem escanteios/cartoes, sem calibracao nem backtest ainda).
+  Os edges sao estimativas exploratorias — <b>nao</b> sao garantia de lucro.
+  Trate como ponto de partida, nao como recomendacao fechada.
+</div>
+{% endif %}
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+{% if result %}
+<p class="hint">Eventos analisados: {{ result.scanned }} de {{ result.events_total }}
+  · ignorados (time fora da base): {{ result.skipped_unknown }}
+  · cota The Odds API restante: {{ result.quota_remaining }}</p>
+
+{% if result.value_bets %}
+<div class="card">
+<table>
+  <thead><tr>
+    <th>Jogo</th><th>Aposta</th><th>Odd ({{ result.bookmaker }})</th>
+    <th>Modelo</th><th>Implicita</th><th>EV / edge</th><th>Stake</th><th>Registrar</th>
+  </tr></thead>
+  <tbody>
+  {% for b in result.value_bets %}
+    <tr>
+      <td>{{ b.home_team }} <span class="hint">x</span> {{ b.away_team }}<br>
+        <span class="hint">{{ b.commence_time[:16] if b.commence_time else '' }}</span></td>
+      <td>{{ b.selection }}</td>
+      <td><b>{{ '%.2f' % b.odd }}</b></td>
+      <td>{{ (b.model_prob * 100) | round(1) }}%</td>
+      <td class="hint">{{ (b.implied_prob * 100) | round(1) }}%</td>
+      <td class="pos">{{ '%+.3f' % b.ev }} <span class="hint">/ {{ '%+.3f' % b.edge }}</span></td>
+      <td>{{ (b.stake_fraction * 100) | round(2) }}%</td>
+      <td>
+        <form class="inline" method="post" action="{{ url_for('add_bet') }}">
+          <input type="hidden" name="home_team" value="{{ b.home_model }}">
+          <input type="hidden" name="away_team" value="{{ b.away_model }}">
+          <input type="hidden" name="division" value="{{ league }}">
+          <input type="hidden" name="market" value="{{ b.market }}">
+          <input type="hidden" name="selection"
+            value="{{ b.home_team }} x {{ b.away_team }}: {{ b.selection }} ({{ b.bookmaker }})">
+          <input type="hidden" name="odd" value="{{ b.odd }}">
+          <input type="hidden" name="model_prob" value="{{ b.model_prob }}">
+          <input type="hidden" name="ev" value="{{ b.ev }}">
+          <input type="hidden" name="edge" value="{{ b.edge }}">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <input type="number" step="0.01" name="stake" placeholder="stake"
+                 style="width:80px" required>
+          <button class="sm" type="submit">Apostar</button>
+        </form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="hint mt"><b>Como ler:</b> "Modelo" e a chance que o Betflow estima;
+"Implicita" e a chance embutida na odd da casa. Quando Modelo &gt; Implicita, a
+casa esta pagando mais do que o risco real (na visao do modelo) — isso e o edge.
+</p>
+{% else %}
+<div class="card hint">Nenhuma value bet encontrada nesta varredura
+  (a casa esta eficiente nestes jogos, ou os times nao estao na base do modelo).</div>
+{% endif %}
+{% else %}
+{% if not error %}
+<div class="card hint">Clique em <b>"Varrer jogos agora"</b> para buscar as
+  odds da {{ bookmaker }} e listar as apostas de valor.</div>
+{% endif %}
+{% endif %}
+{% endblock %}

@@ -1,0 +1,52 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Jogos{% endblock %}
+{% block content %}
+<h1>Proximos jogos <span class="hint">— {{ division }} (SofaScore ao vivo)</span></h1>
+
+{% if quota is not none %}
+<p class="hint">Cota SofaScore restante: {{ quota }}</p>
+{% endif %}
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+{% if fixtures %}
+<div class="card">
+<table>
+  <thead><tr>
+    <th>Data (UTC)</th><th>Confronto (SofaScore)</th><th>Torneio</th>
+    <th>Reconhecido pelo modelo?</th><th></th>
+  </tr></thead>
+  <tbody>
+  {% for f in fixtures %}
+    <tr>
+      <td class="hint">{{ f.kickoff_utc[:16] if f.kickoff_utc else '-' }}</td>
+      <td>{{ f.home_team }} <span class="hint">x</span> {{ f.away_team }}</td>
+      <td class="hint">{{ f.tournament }}</td>
+      <td>
+        {% if f.known %}
+          <span class="badge b-won">{{ f.home_model }} x {{ f.away_model }}</span>
+        {% else %}
+          <span class="badge b-lost">nao mapeado</span>
+        {% endif %}
+      </td>
+      <td>
+        {% if f.known %}
+          <a class="btn-link" href="{{ url_for('predict_page',
+             home=f.home_model, away=f.away_model, match_id=f.match_id) }}">
+             Analisar + odds →</a>
+        {% else %}
+          <span class="hint">—</span>
+        {% endif %}
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+<p class="hint mt">"Reconhecido pelo modelo" mapeia o nome da SofaScore para o
+time que o Dixon-Coles conhece (treinado na temporada {{ division }} carregada).
+Jogos "nao mapeado" sao de times fora da base de treino atual.</p>
+{% elif not error %}
+<div class="card hint">Nenhum jogo futuro retornado pela SofaScore agora.</div>
+{% endif %}
+{% endblock %}

@@ -272,6 +272,17 @@ def create_app() -> FastAPI:
             }
         )
 
+    # Subprojeto isolado montado em /betflow. Carregamento protegido: se as
+    # dependencias pesadas nao estiverem instaladas (ou algo falhar), o gateway
+    # sobe normalmente sem a aba — nunca contamina a app principal.
+    try:
+        from betflow_app import build_asgi
+
+        app.mount("/betflow", build_asgi())
+        get_logger("aegisflow").info("betflow_mounted", path="/betflow")
+    except Exception as exc:  # noqa: BLE001
+        get_logger("aegisflow").warning("betflow_mount_skipped", error=str(exc))
+
     # Assets estáticos (css/js/vendor) em app/public/.
     app.mount("/static", StaticFiles(directory=PUBLIC_DIR), name="static")
 

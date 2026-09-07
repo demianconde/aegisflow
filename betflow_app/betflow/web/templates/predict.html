@@ -1,0 +1,157 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Consultar jogo{% endblock %}
+{% block content %}
+<h1>Consultar confronto</h1>
+
+<div class="card">
+<form method="get" action="{{ url_for('predict_page') }}" class="row">
+  <div>
+    <label>Mandante</label>
+    <select name="home" required>
+      <option value="">— escolha —</option>
+      {% for t in teams %}
+      <option value="{{ t }}" {{ 'selected' if t == home }}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Visitante</label>
+    <select name="away" required>
+      <option value="">— escolha —</option>
+      {% for t in teams %}
+      <option value="{{ t }}" {{ 'selected' if t == away }}>{{ t }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div>
+    <label>Arbitro (opcional — afeta cartoes)</label>
+    <select name="referee">
+      <option value="">— media da liga —</option>
+      {% for r in referees %}
+      <option value="{{ r }}" {{ 'selected' if r == referee }}>{{ r }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="flex:0"><button type="submit">Calcular</button></div>
+</form>
+</div>
+
+{% if error %}<div class="error">{{ error }}</div>{% endif %}
+
+{% if prediction %}
+{% set eg = prediction.expected_goals %}
+<h2>{{ prediction.home_team }} x {{ prediction.away_team }}</h2>
+<div class="grid cols-3">
+  <div class="card kpi"><div class="label">Gols esperados (mandante)</div>
+    <div class="value">{{ eg.home }}</div></div>
+  <div class="card kpi"><div class="label">Gols esperados (visitante)</div>
+    <div class="value">{{ eg.away }}</div></div>
+  <div class="card kpi"><div class="label">Total esperado</div>
+    <div class="value">{{ eg.total }}</div></div>
+</div>
+
+{% if market_odds %}
+<p class="hint mt"><span class="badge b-won">odds ao vivo</span> As odds abaixo
+foram preenchidas automaticamente pela SofaScore (mercado de fechamento). Ajuste
+se a sua casa oferecer valor diferente e registre a aposta.</p>
+{% else %}
+<p class="hint mt">Digite a <b>odd</b> que a casa oferece em cada mercado: o
+sistema calcula EV, edge e o stake sugerido (Kelly {{ kelly | pct }}). So
+aparece "VALOR" quando o edge &ge; {{ min_edge | pct }}. Registre a aposta que
+voce realmente fez.</p>
+{% endif %}
+{% set so = market_odds or {} %}
+{% set o1x2 = so.get('1X2', {}) %}
+{% set obtts = so.get('Both teams to score', {}) %}
+
+<h2>Mercados e probabilidades do modelo</h2>
+<div class="card">
+<table>
+  <thead><tr>
+    <th>Mercado</th><th>Prob. modelo</th><th>Odd justa</th>
+    <th>Sua odd</th><th>EV / edge</th><th>Stake sug.</th><th>Registrar</th>
+  </tr></thead>
+  <tbody id="markets">
+    {% macro row(market, label, prob, prefill=None) -%}
+    <tr data-prob="{{ prob }}" data-market="{{ market }}" data-label="{{ label }}">
+      <td>{{ label }}</td>
+      <td>{{ (prob * 100) | round(1) }}%</td>
+      <td>{{ (1.0 / prob) | round(2) if prob > 0 else '-' }}</td>
+      <td><input type="number" step="0.01" class="odd" style="width:90px"
+                 placeholder="ex 2.10" oninput="calc(this)"
+                 {% if prefill %}value="{{ prefill }}"{% endif %}></td>
+      <td class="evcell hint">—</td>
+      <td class="stakecell hint">—</td>
+      <td>
+        <form class="inline betform" method="post"
+              action="{{ url_for('add_bet') }}">
+          <input type="hidden" name="home_team" value="{{ prediction.home_team }}">
+          <input type="hidden" name="away_team" value="{{ prediction.away_team }}">
+          <input type="hidden" name="division" value="{{ prediction.division }}">
+          <input type="hidden" name="market" value="{{ market }}">
+          <input type="hidden" name="selection"
+                 value="{{ prediction.home_team }} x {{ prediction.away_team }}: {{ label }}">
+          <input type="hidden" name="model_prob" value="{{ prob }}">
+          <input type="hidden" name="odd" class="f-odd">
+          <input type="hidden" name="ev" class="f-ev">
+          <input type="hidden" name="edge" class="f-edge">
+          <input type="hidden" name="next" value="{{ request.full_path }}">
+          <input type="number" step="0.01" name="stake" class="f-stake"
+                 placeholder="stake" style="width:80px" required>
+          <button class="sm" type="submit">Apostar</button>
+        </form>
+      </td>
+    </tr>
+    {%- endmacro %}
+
+    {{ row('1X2:H', prediction.home_team ~ ' vencer', prediction.markets['1X2'].H, o1x2.get('home')) }}
+    {{ row('1X2:D', 'Empate', prediction.markets['1X2'].D, o1x2.get('draw')) }}
+    {{ row('1X2:A', prediction.away_team ~ ' vencer', prediction.markets['1X2'].A, o1x2.get('away')) }}
+    {{ row('OU2.5:over', 'Over 2.5 gols', prediction.markets['OU2.5'].over) }}
+    {{ row('OU2.5:under', 'Under 2.5 gols', prediction.markets['OU2.5'].under) }}
+    {{ row('BTTS:yes', 'Ambas marcam (sim)', prediction.markets['BTTS'].yes, obtts.get('yes')) }}
+    {{ row('BTTS:no', 'Ambas marcam (nao)', prediction.markets['BTTS'].no, obtts.get('no')) }}
+    {{ row('corners:over9.5', 'Escanteios Over 9.5', prediction.markets['corners']['over9.5']) }}
+    {{ row('corners:over10.5', 'Escanteios Over 10.5', prediction.markets['corners']['over10.5']) }}
+    {{ row('cards:over3.5', 'Cartoes Over 3.5', prediction.markets['cards']['over3.5']) }}
+    {{ row('cards:over4.5', 'Cartoes Over 4.5', prediction.markets['cards']['over4.5']) }}
+  </tbody>
+</table>
+</div>
+<p class="hint">Escanteios esperados: {{ prediction.markets['corners'].expected_total }}
+   · Cartoes esperados: {{ prediction.markets['cards'].expected_total }}</p>
+
+<script>
+const KELLY = {{ kelly }}, MIN_EDGE = {{ min_edge }};
+function calc(input) {
+  const tr = input.closest('tr');
+  const prob = parseFloat(tr.dataset.prob);
+  const odd = parseFloat(input.value);
+  const ev = tr.querySelector('.evcell');
+  const stakeCell = tr.querySelector('.stakecell');
+  tr.querySelector('.f-odd').value = isFinite(odd) ? odd : '';
+  if (!isFinite(odd) || odd <= 1) { ev.textContent='—'; ev.className='evcell hint';
+    stakeCell.textContent='—'; return; }
+  const evVal = prob * odd - 1;
+  const edge = prob - 1/odd;
+  const b = odd - 1, f = (b*prob - (1-prob))/b;
+  const stake = f > 0 ? f*KELLY : 0;
+  tr.querySelector('.f-ev').value = evVal.toFixed(4);
+  tr.querySelector('.f-edge').value = edge.toFixed(4);
+  const value = edge >= MIN_EDGE;
+  ev.innerHTML = (evVal>=0?'+':'') + evVal.toFixed(3) + ' / ' +
+     (edge>=0?'+':'') + edge.toFixed(3) +
+     (value ? ' <span class="badge b-value">VALOR</span>' : '');
+  ev.className = 'evcell ' + (evVal>=0 ? 'pos' : 'neg');
+  stakeCell.textContent = (stake*100).toFixed(2) + '% da banca';
+  stakeCell.className = 'stakecell';
+}
+// odds pre-preenchidas (SofaScore) -> calcula EV/stake ao carregar a pagina
+document.addEventListener('DOMContentLoaded', function () {
+  document.querySelectorAll('#markets input.odd').forEach(function (inp) {
+    if (inp.value) calc(inp);
+  });
+});
+</script>
+{% endif %}
+{% endblock %}

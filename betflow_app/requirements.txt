@@ -1,0 +1,14 @@
+# Betflow - Ciclo 3 (Features + Modelos estatisticos)
+# Camada de dados (Ciclo 1) + modelagem estatistica pesada.
+pandas>=2.0
+numpy>=1.24
+requests>=2.31
+python-dotenv>=1.0
+pytest>=7.4
+# --- modelagem ---
+scipy>=1.11          # optimize (MLE Dixon-Coles), distribuicoes (nbinom, poisson)
+scikit-learn>=1.3    # metricas (log loss, brier), calibracao, utilitarios
+matplotlib>=3.7      # diagnostico/backtest (curvas de banca, calibracao)
+# --- servidor local (bet tracker / paper trading) ---
+flask>=3.0           # servidor web local + templates Jinja2
+

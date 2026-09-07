@@ -1,0 +1,105 @@
+{% extends "base.html" %}
+{% block title %}Betflow · Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard <span class="hint">— {{ division }} {{ season }}</span></h1>
+
+{% if stats.initial_bankroll is none %}
+<div class="card">
+  <h2>Defina sua banca inicial</h2>
+  <form method="post" action="{{ url_for('set_bankroll') }}" class="row">
+    <div>
+      <label>Banca inicial (unidades / R$)</label>
+      <input type="number" step="0.01" name="initial" required placeholder="1000">
+    </div>
+    <div style="flex:0"><button type="submit">Salvar</button></div>
+  </form>
+</div>
+{% else %}
+<div class="grid cols-4">
+  <div class="card kpi">
+    <div class="label">Banca atual</div>
+    <div class="value">{{ stats.current_bankroll | money }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">P&amp;L</div>
+    <div class="value {{ 'pos' if stats.pnl >= 0 else 'neg' }}">
+      {{ stats.pnl | money }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">ROI (sobre banca)</div>
+    <div class="value {{ 'pos' if (stats.roi or 0) >= 0 else 'neg' }}">
+      {{ stats.roi | pct }}</div>
+  </div>
+  <div class="card kpi">
+    <div class="label">Yield (sobre volume)</div>
+    <div class="value {{ 'pos' if (stats.yield or 0) >= 0 else 'neg' }}">
+      {{ stats.yield | pct }}</div>
+  </div>
+</div>
+
+<div class="grid cols-4 mt">
+  <div class="card kpi"><div class="label">Apostas abertas</div>
+    <div class="value">{{ stats.n_pending }}</div></div>
+  <div class="card kpi"><div class="label">Exposicao aberta</div>
+    <div class="value">{{ stats.exposure | money }}</div></div>
+  <div class="card kpi"><div class="label">Green / Red</div>
+    <div class="value">{{ stats.n_won }} / {{ stats.n_lost }}</div></div>
+  <div class="card kpi"><div class="label">Taxa de acerto</div>
+    <div class="value">{{ stats.hit_rate | pct }}</div></div>
+</div>
+
+<h2>Apostas abertas</h2>
+<p class="hint">
+  <form class="inline" method="post" action="{{ url_for('settle_auto') }}">
+    <button class="ghost sm" type="submit">🔄 Buscar resultados e liquidar automaticamente</button>
+  </form>
+  Consulta a The Odds API e marca Green/Red dos jogos já terminados.
+</p>
+{% if pending %}
+<div class="card">
+<table>
+  <thead><tr><th>#</th><th>Jogo</th><th>Mercado</th><th>Odd</th>
+    <th>Stake</th><th>Retorno pot.</th><th>Liquidar</th></tr></thead>
+  <tbody>
+  {% for b in pending %}
+    <tr>
+      <td>{{ b.id }}</td>
+      <td>{{ b.home_team }} x {{ b.away_team }}<br>
+          <span class="hint">{{ b.selection }}</span></td>
+      <td><span class="badge b-pending">{{ b.market }}</span></td>
+      <td>{{ '%.2f' % b.odd }}</td>
+      <td>{{ b.stake | money }}</td>
+      <td class="pos">+{{ '%.2f' % (b.stake * (b.odd - 1)) }}</td>
+      <td>
+        <form class="inline" method="post"
+              action="{{ url_for('settle_bet', bet_id=b.id) }}">
+          <input type="hidden" name="status" value="WON">
+          <button class="win sm" type="submit">Green</button></form>
+        <form class="inline" method="post"
+              action="{{ url_for('settle_bet', bet_id=b.id) }}">
+          <input type="hidden" name="status" value="LOST">
+          <button class="lose sm" type="submit">Red</button></form>
+        <form class="inline" method="post"
+              action="{{ url_for('settle_bet', bet_id=b.id) }}">
+          <input type="hidden" name="status" value="VOID">
+          <button class="ghost sm" type="submit">Anular</button></form>
+      </td>
+    </tr>
+  {% endfor %}
+  </tbody>
+</table>
+</div>
+{% else %}
+<div class="card hint">Nenhuma aposta aberta.
+  <a href="{{ url_for('predict_page') }}">Consultar um jogo →</a></div>
+{% endif %}
+
+<p class="mt hint">Recalcular banca?
+  <form class="inline" method="post" action="{{ url_for('set_bankroll') }}">
+    <input type="number" step="0.01" name="initial"
+           placeholder="{{ stats.initial_bankroll }}" style="width:120px">
+    <button class="ghost sm" type="submit">Redefinir inicial</button>
+  </form>
+</p>
+{% endif %}
+{% endblock %}
