@@ -94,7 +94,9 @@ LEAGUES = {
 
 # Competicoes-alvo do relatorio "apostas prontas" (ordem de exibicao).
 # Restringe as chamadas da The Odds API a ESTAS ligas (economia de cota).
-TARGET_LEAGUES = ["BSA", "ARG", "E0", "F1", "I1", "SP1", "UCL"]
+# So ligas onde a Betano (unica casa que operamos, autorizada no Brasil) cota.
+# ARG e UCL ficam de fora: a Betano nao oferece esses campeonatos no feed.
+TARGET_LEAGUES = ["BSA", "E0", "F1", "I1", "SP1"]
 
 # Deep-link de melhor esforco para a Betano (nao ha link publico por jogo):
 # leva a busca da casa pelo confronto. {q} = "Time A Time B" url-encoded.

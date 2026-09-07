@@ -220,6 +220,8 @@ def suggest(leagues: list[str] | None = None, days: int = 7,
             if not _in_window(ev.get("commence_time", ""), days, today_only):
                 continue
             n_win += 1
+            # So recomendamos jogos que a Betano (casa que opera no Brasil)
+            # realmente cotou; sem Betano, nao ha onde aportar aqui.
             odds = odds_api.extract_h2h_by_bookmaker(ev, bookmaker)
             if not odds:
                 continue
