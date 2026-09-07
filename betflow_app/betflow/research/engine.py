@@ -95,7 +95,11 @@ def run(leagues: list[str] | None = None, days: int = 7,
     """Gera sinais +EV da Boosted Research. 1 credito por liga (regiao unica)."""
     leagues = leagues or list(settings.TARGET_LEAGUES)
     regions = regions or REGIONS
-    pol = staking.boosted_policy()
+    # Piso operacional (R$ minimo por entrada) em fracao da banca de referencia:
+    # sinais menores que isso sao descartados dentro do evaluate.
+    _bank = store.get_suggestions_initial_bankroll()
+    _floor = (settings.STAKE_FLOOR_ABS / _bank) if _bank and _bank > 0 else 0.0
+    pol = staking.boosted_policy(stake_floor_frac=_floor)
 
     res = ResearchResult()
     client = odds_api.OddsApiClient()

@@ -230,7 +230,11 @@ def suggest(leagues: list[str] | None = None, days: int = 7,
 
     res = SuggestResult()
     client = odds_api.OddsApiClient()
-    pol = staking.main_policy()
+    # Piso operacional (R$ minimo por entrada) convertido em fracao da banca de
+    # referencia: entradas menores que isso sao descartadas dentro do evaluate.
+    _bank = store.get_suggestions_initial_bankroll()
+    _floor = (settings.STAKE_FLOOR_ABS / _bank) if _bank and _bank > 0 else 0.0
+    pol = staking.main_policy(stake_floor_frac=_floor)
 
     for code in leagues:
         cfg = settings.LEAGUES.get(code)

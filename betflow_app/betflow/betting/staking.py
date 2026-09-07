@@ -60,10 +60,19 @@ class StakingPolicy:
     conf_min_games: float = settings.CONF_MIN_GAMES
     conf_full_games: float = settings.CONF_FULL_GAMES
     conf_floor: float = settings.CONF_FLOOR
+    # Piso operacional: fracao MINIMA da banca abaixo da qual a entrada nao vale
+    # o trabalho e e DESCARTADA (nao arredondada — arredondar poria mais dinheiro
+    # nas entradas de menor conviccao, ferindo a disciplina de risco). Vem da
+    # banca de referencia: floor_frac = STAKE_FLOOR_ABS / banca. 0.0 = desligado.
+    stake_floor_frac: float = 0.0
 
 
-def main_policy() -> StakingPolicy:
-    """Politica do motor principal (Dixon-Coles)."""
+def main_policy(stake_floor_frac: float = 0.0) -> StakingPolicy:
+    """Politica do motor principal (Dixon-Coles).
+
+    `stake_floor_frac` e o piso operacional (fracao da banca) abaixo do qual a
+    entrada e descartada; calcule-o a partir da banca de referencia.
+    """
     return StakingPolicy(
         name="main",
         min_edge=settings.MAIN_MIN_EDGE,
@@ -71,11 +80,15 @@ def main_policy() -> StakingPolicy:
         max_odd=settings.MAIN_MAX_ODD,
         lam=settings.MAIN_LAMBDA,
         max_rel_disagree=settings.MAIN_MAX_REL_DISAGREE,
+        stake_floor_frac=stake_floor_frac,
     )
 
 
-def boosted_policy() -> StakingPolicy:
-    """Politica da Boosted Research (Elo + XGBoost)."""
+def boosted_policy(stake_floor_frac: float = 0.0) -> StakingPolicy:
+    """Politica da Boosted Research (Elo + XGBoost).
+
+    `stake_floor_frac`: idem `main_policy` (piso operacional em fracao da banca).
+    """
     return StakingPolicy(
         name="boosted",
         min_edge=settings.BOOSTED_MIN_EDGE,
@@ -85,6 +98,7 @@ def boosted_policy() -> StakingPolicy:
         max_rel_disagree=settings.BOOSTED_MAX_REL_DISAGREE,
         kelly=settings.BOOSTED_KELLY,
         stake_cap=settings.BOOSTED_STAKE_CAP,
+        stake_floor_frac=stake_floor_frac,
     )
 
 
@@ -186,6 +200,10 @@ def evaluate(policy: StakingPolicy, market: str, selection: str,
     stake = min(kelly * conf, policy.stake_cap)
     if stake <= 0.0:
         return _reject("Kelly nao-positivo")
+    # Piso operacional: entradas pequenas demais nao valem o trabalho -> descarta
+    # (nunca arredonda para cima; ver StakingPolicy.stake_floor_frac).
+    if policy.stake_floor_frac > 0.0 and stake < policy.stake_floor_frac:
+        return _reject("abaixo do piso operacional")
 
     return StakeDecision(True, "ok", market, selection, float(odd),
                          float(p_model), float(p_fair), float(p_used),

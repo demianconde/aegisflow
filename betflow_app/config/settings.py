@@ -184,6 +184,10 @@ BOOSTED_STAKE_CAP = _envf("BOOSTED_STAKE_CAP", 0.035)   # vs 0.02 do principal
 # Gestao de banca (comum aos dois motores)
 # ---------------------------------------------------------------------------
 STAKE_CAP = _envf("BETFLOW_STAKE_CAP", 0.02)             # teto por entrada (2%)
+# Piso operacional em REAIS: entradas cujo dimensionamento fique abaixo disso sao
+# DESCARTADAS ("menos que isso nem vale o trabalho"). Vira fracao dividindo pela
+# banca de referencia no motor (ver suggest.py / research/engine.py).
+STAKE_FLOOR_ABS = _envf("BETFLOW_STAKE_FLOOR_ABS", 5.0)   # menor entrada = R$5
 CONF_MIN_GAMES = _envf("BETFLOW_CONF_MIN_GAMES", 8)      # abaixo => confianca baixa
 CONF_FULL_GAMES = _envf("BETFLOW_CONF_FULL_GAMES", 30)   # a partir daqui, cheia
 CONF_FLOOR = _envf("BETFLOW_CONF_FLOOR", 0.25)           # confianca minima (>0)
